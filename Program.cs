@@ -1,3 +1,5 @@
+using BookMoth_Api_With_C_.Middleware;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -16,6 +18,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseMiddleware<ApiKeyMiddleware>();
 app.UseHttpsRedirection();
 
 app.UseAuthorization();
