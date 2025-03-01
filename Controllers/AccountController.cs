@@ -1,13 +1,15 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using BookMoth_Api_With_C_.Models;
+using BookMoth_Api_With_C_.ViewModels;
+using Microsoft.AspNetCore.Mvc;
 
-// For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
 namespace BookMoth_Api_With_C_.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("[controller]")]
     [ApiController]
     public class AccountController : ControllerBase
     {
+        private BookMothContext _context = new BookMothContext();
         // GET: api/<AccountController>
         [HttpGet]
         public IEnumerable<string> Get()
@@ -17,9 +19,21 @@ namespace BookMoth_Api_With_C_.Controllers
 
         // GET api/<AccountController>/5
         [HttpGet("{id}")]
-        public string Get(int id)
+        public IActionResult Get(int id)
         {
-            return "value";
+            Account account = _context.Accounts.FirstOrDefault(x => x.AccountId == id);
+            if (account == null)
+            {
+                return NotFound();
+            }
+            AccountViewModel accountViewModel = new AccountViewModel
+            {
+                AccountId = account.AccountId,
+                Email = account.Email,
+                Password = account.Password,
+                AccountType = account.AccountType
+            };
+            return Ok(accountViewModel);
         }
 
         // POST api/<AccountController>
