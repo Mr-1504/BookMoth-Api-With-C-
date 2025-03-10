@@ -14,6 +14,8 @@ namespace BookMoth_Api_With_C_.Services
         private readonly int _accessTokenExpiresInMinutes;
         private readonly int _refreshTokenExpiresInMonths;
 
+        public int RefreshTokenExpiresInMonths => _refreshTokenExpiresInMonths;
+
         public JwtService(IConfiguration config)
         {
             _config = config;
