@@ -20,6 +20,7 @@ public partial class Profile
     public string? Coverphoto { get; set; }
 
     public string? Identifier { get; set; }
+    public int? Gender { get; set; }
 
     public virtual Account Account { get; set; } = null!;
 
