@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
 using BookMoth_Api_With_C_.Models;
-using BTL_LTWeb.Services;
+using BookMoth_Api_With_C_.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,6 +27,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddSingleton<JwtService>();
 
 builder.Services.AddDbContext<BookMothContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("BookMothContext")));
