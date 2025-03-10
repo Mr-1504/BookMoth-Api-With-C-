@@ -1,4 +1,4 @@
-﻿namespace BTL_LTWeb.Services
+﻿namespace BookMoth_Api_With_C_.Services
 {
     public class EmailSettings
     {
