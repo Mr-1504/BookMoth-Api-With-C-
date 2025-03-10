@@ -1,9 +1,6 @@
-﻿using Azure.Core;
-using BookMoth_Api_With_C_.Models;
-using BookMoth_Api_With_C_.RequestModels;
+﻿using BookMoth_Api_With_C_.Models;
 using BookMoth_Api_With_C_.Services;
 using BookMoth_Api_With_C_.ViewModels;
-using BTL_LTWeb.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -21,12 +18,18 @@ namespace BookMoth_Api_With_C_.Controllers
         private BookMothContext _context;
         private IMemoryCache _cache;
         private EmailService _emailService;
+        private JwtService _jwtService;
 
-        public AccountController(BookMothContext context, IMemoryCache cache, EmailService emailService)
+        public AccountController(
+            BookMothContext context,
+            IMemoryCache cache,
+            EmailService emailService,
+            JwtService jwtService)
         {
             _context = context;
             _cache = cache;
             _emailService = emailService;
+            _jwtService = jwtService;
         }
 
 
@@ -55,46 +58,82 @@ namespace BookMoth_Api_With_C_.Controllers
         {
             if (register == null || string.IsNullOrEmpty(register.Email) || string.IsNullOrEmpty(register.Password))
                 return BadRequest(new { success = false, message = "Invalid data" });
+
             if (_context.Accounts.Any(x => x.Email == register.Email))
-                return BadRequest(new { success = false, message = "Email already exists" });
+                return Conflict(new { success = false, message = "Email already exists" });
 
-            var salt = SecurityService.GenerateSalt();
-            Account account = new Account
-            {
-                Email = register.Email,
-                Password = SecurityService.HashPasswordWithSalt(register.Password, salt),
-                Salt = salt,
-                AccountType = register.AccountType
-            };
+            using var transaction = _context.Database.BeginTransaction();
 
-            _context.Accounts.Add(account);
-            _context.SaveChanges();
-            var newAccount = _context.Accounts.FirstOrDefault(x => x.Email == register.Email);
-            var profile = new Profile
+            try
             {
-                AccountId = newAccount.AccountId,
-                FirstName = register.FirstName,
-                LastName = register.LastName,
-                Username = register.Username,
-                Avatar = register.Avatar,
-                Coverphoto = register.Coverphoto,
-                Identifier = register.Identifier
-            };
-
-            _context.Profiles.Add(profile);
-            _context.SaveChanges();
-            return Ok(new
-            {
-                success = true,
-                data = new AccountViewModel
+                var salt = SecurityService.GenerateSalt();
+                var account = new Account
                 {
-                    AccountId = account.AccountId,
-                    Email = account.Email,
-                    Password = account.Password,
-                    AccountType = account.AccountType
+                    Email = register.Email,
+                    Password = SecurityService.HashPasswordWithSalt(register.Password, salt),
+                    Salt = salt,
+                    AccountType = register.AccountType
+                };
+
+                _context.Accounts.Add(account);
+                _context.SaveChanges();
+
+                var newAccount = _context.Accounts.FirstOrDefault(x => x.Email == register.Email);
+                if (newAccount == null)
+                {
+                    throw new Exception("Account creation failed.");
                 }
-            });
+
+                var count = _context.Accounts.Count();
+
+                var profile = new Profile
+                {
+                    AccountId = newAccount.AccountId,
+                    FirstName = register.FirstName,
+                    LastName = register.LastName,
+                    Username = "member_" + count.ToString(),
+                    Avatar = register.Avatar,
+                    Coverphoto = register.Coverphoto,
+                    Identifier = "",
+                    Gender = register.Gender
+                };
+
+                _context.Profiles.Add(profile);
+                _context.SaveChanges();
+
+                var jwtToken = _jwtService.GenerateSecurityToken(newAccount);
+                var refreshToken = _jwtService.GenerateRefreshToken();
+
+                var refresh = new RefreshToken
+                {
+                    AccountId = newAccount.AccountId,
+                    Token = refreshToken,
+                    ExpiryDate = DateTime.UtcNow.AddMonths(_jwtService.RefreshTokenExpiresInMonths),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.RefreshTokens.Add(refresh);
+                _context.SaveChanges();
+
+                transaction.Commit();
+
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        jwtToken = jwtToken,
+                        refreshToken = refreshToken
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                transaction.Rollback();
+                return UnprocessableEntity(new { success = false, message = "Error while registering account.", error = ex.Message });
+            }
         }
+
 
         // POST /<AccountController>/login
         [HttpPost("login")]
