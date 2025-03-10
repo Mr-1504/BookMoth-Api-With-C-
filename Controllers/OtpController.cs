@@ -1,8 +1,6 @@
 ﻿using BookMoth_Api_With_C_.Models;
 using BookMoth_Api_With_C_.RequestModels;
 using BookMoth_Api_With_C_.Services;
-using BTL_LTWeb.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
