@@ -2,86 +2,25 @@
 using System.Net;
 using Microsoft.Extensions.Options;
 
-namespace BTL_LTWeb.Services
+namespace BookMoth_Api_With_C_.Services
 {
     public class EmailService
     {
-        private readonly string _confirmEmailContent = @"
-            <!DOCTYPE html>
-            <html lang='vi'>
-            <head>
-                <meta charset='UTF-8'>
-                <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-                <title>Xác thực tài khoản</title>
-                <style>
-                    body {{
-                        font-family: Arial, sans-serif;
-                        background-color: #f4f4f4;
-                        margin: 0;
-                        padding: 0;
-                    }}
-                    .container {{
-                        max-width: 500px;
-                        margin: 20px auto;
-                        background: #fff;
-                        padding: 20px;
-                        border-radius: 8px;
-                        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-                        text-align: center;
-                    }}
-                    .header h1 {{
-                        color: #333;
-                    }}
-                    .otp {{
-                        font-size: 24px;
-                        font-weight: bold;
-                        background: #f8f9fa;
-                        padding: 10px;
-                        border-radius: 5px;
-                        display: inline-block;
-                        margin: 15px 0;
-                        letter-spacing: 2px;
-                    }}
-                    .button {{
-                        display: inline-block;
-                        background: #007bff;
-                        color: white;
-                        padding: 10px 20px;
-                        text-decoration: none;
-                        border-radius: 5px;
-                        margin-top: 10px;
-                    }}
-                    .footer {{
-                        margin-top: 20px;
-                        font-size: 12px;
-                        color: #666;
-                    }}
-                </style>
-            </head>
-            <body>
-                <div class='container'>
-                    <div class='header'>
-                        <h1>Xác thực tài khoản</h1>
-                    </div>
-                    <div class='content'>
-                        <h2>Chào {name},</h2>
-                        <p>Cảm ơn bạn đã đăng ký tài khoản với chúng tôi!</p>
-                        <p>Vui lòng nhập mã bên dưới để xác nhận tài khoản của bạn:</p>
-            
-                        <!-- Đây là phần giúp Android tự động điền OTP -->
-                        <p class='otp'>{code}</p>
-
-                        <p>Hoặc bấm vào nút bên dưới để xác nhận:</p>
-                        <a href='{ConfirmationLink}' class='button'>Xác nhận tài khoản</a>
-            
-                        <p>Nếu bạn không thực hiện yêu cầu này, có thể bỏ qua email này.</p>
-                    </div>
-                    <div class='footer'>
-                        <p>&copy; {DateTime.Now.Year} BookMoth. Bảo mật thông tin của bạn là ưu tiên hàng đầu của chúng tôi.</p>
-                    </div>
-                </div>
-            </body>
-            </html>";
+        private readonly string _confirmEmailContent =
+            "<div class='header'>" +
+            "   <h1>Xác thực tài khoản</h1>" +
+            "</div>" +
+            "<div class='content'>" +
+            "   <h2>Chào {name},</h2>" +
+            "   <p>Cảm ơn bạn đã đăng ký tài khoản với chúng tôi!</p>" +
+            "   <p>Để hoàn tất quá trình đăng ký, xin vui lòng nhập mã bên dưới để xác nhận tài khoản của bạn:</p>" +
+            "   <a href='{{ConfirmationLink}}' class='button'>{code}</a>" +
+            "   <p>Nếu bạn không thực hiện yêu cầu này, bạn có thể bỏ qua email này.</p>" +
+            "   <p>Trân trọng,<br>Đội ngũ hỗ trợ</p>" +
+            "</div>" +
+            "<div class='footer'>" +
+            "   <p>&copy; {DateTime.Now.Year} BeA Fashion. Bảo mật thông tin của bạn là ưu tiên hàng đầu của chúng tôi.</p>" +
+            "</div>";
 
         private readonly string _forgotPasswordContent =
             "<div class='header'>" +
