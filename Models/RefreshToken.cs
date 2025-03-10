@@ -15,6 +15,7 @@ public partial class RefreshToken
 
     public DateTime CreatedAt { get; set; }
 
+    //vô hiệu hóa, thu hồi refresh token
     public DateTime? RevokedAt { get; set; }
 
     public virtual Account Account { get; set; } = null!;
