@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace BookMoth_Api_With_C_.Models;
+﻿namespace BookMoth_Api_With_C_.Models;
 
 public partial class RefreshToken
 {
@@ -13,10 +10,15 @@ public partial class RefreshToken
 
     public DateTime ExpiryDate { get; set; }
 
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
 
-    //vô hiệu hóa, thu hồi refresh token
-    public DateTime? RevokedAt { get; set; }
+    public string? CreatedByIp { get; set; }
+
+    public DateTime? RevokedDate { get; set; }
+
+    public string? RevokedByIp { get; set; }
+
+    public bool IsActive { get; set; }
 
     public virtual Account Account { get; set; } = null!;
 }
