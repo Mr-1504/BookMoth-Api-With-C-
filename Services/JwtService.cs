@@ -61,5 +61,14 @@ namespace BookMoth_Api_With_C_.Services
             }
             return Convert.ToBase64String(randomNumber);
         }
+
+        public string HashToken(string token)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(token));
+                return Convert.ToBase64String(hashedBytes);
+            }
+        }
     }
 }
