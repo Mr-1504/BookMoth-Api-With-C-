@@ -33,6 +33,8 @@ public partial class BookMothContext : DbContext
 
     public virtual DbSet<PurchaseInvoice> PurchaseInvoices { get; set; }
 
+    public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
+
     public virtual DbSet<Wallet> Wallets { get; set; }
 
     public virtual DbSet<Work> Works { get; set; }
@@ -45,7 +47,11 @@ public partial class BookMothContext : DbContext
     {
         modelBuilder.Entity<Account>(entity =>
         {
-            entity.HasKey(e => e.AccountId).HasName("PK__Accounts__46A222CD11C08D60");
+            entity.HasKey(e => e.AccountId).HasName("PK__Accounts__46A222CDED00DD8E");
+
+            entity.HasIndex(e => e.Email, "IX_Email");
+
+            entity.HasIndex(e => e.Email, "UQ__Accounts__AB6E6164D41FB0F9").IsUnique();
 
             entity.Property(e => e.AccountId).HasColumnName("account_id");
             entity.Property(e => e.AccountType).HasColumnName("account_type");
@@ -57,11 +63,15 @@ public partial class BookMothContext : DbContext
                 .HasMaxLength(255)
                 .IsUnicode(false)
                 .HasColumnName("password");
+            entity.Property(e => e.Salt)
+                .HasMaxLength(50)
+                .IsUnicode(false)
+                .HasColumnName("salt");
         });
 
         modelBuilder.Entity<AuthorWallet>(entity =>
         {
-            entity.HasKey(e => e.WalletId).HasName("PK__AuthorWa__0EE6F0415E9EE22C");
+            entity.HasKey(e => e.WalletId).HasName("PK__AuthorWa__0EE6F04144049E2A");
 
             entity.Property(e => e.WalletId).HasColumnName("wallet_id");
             entity.Property(e => e.AccumulatedBalance)
@@ -77,7 +87,7 @@ public partial class BookMothContext : DbContext
 
         modelBuilder.Entity<Category>(entity =>
         {
-            entity.HasKey(e => e.CategoryId).HasName("PK__Categori__D54EE9B411D872A7");
+            entity.HasKey(e => e.CategoryId).HasName("PK__Categori__D54EE9B403D904DE");
 
             entity.Property(e => e.CategoryId).HasColumnName("category_id");
             entity.Property(e => e.Category1)
@@ -91,7 +101,7 @@ public partial class BookMothContext : DbContext
 
         modelBuilder.Entity<Chapter>(entity =>
         {
-            entity.HasKey(e => e.ChapterId).HasName("PK__Chapters__745EFE87DCD257B7");
+            entity.HasKey(e => e.ChapterId).HasName("PK__Chapters__745EFE876FF90C3F");
 
             entity.Property(e => e.ChapterId).HasColumnName("chapter_id");
             entity.Property(e => e.FileUrl)
@@ -105,7 +115,7 @@ public partial class BookMothContext : DbContext
 
         modelBuilder.Entity<Iachistory>(entity =>
         {
-            entity.HasKey(e => e.IachId).HasName("PK__IACHisto__566E7C53D51B1D9F");
+            entity.HasKey(e => e.IachId).HasName("PK__IACHisto__566E7C535913B7B0");
 
             entity.ToTable("IACHistory");
 
@@ -132,12 +142,12 @@ public partial class BookMothContext : DbContext
             entity.HasOne(d => d.Wallet).WithMany(p => p.Iachistories)
                 .HasForeignKey(d => d.WalletId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__IACHistor__walle__73BA3083");
+                .HasConstraintName("FK__IACHistor__walle__68487DD7");
         });
 
         modelBuilder.Entity<PaymentInvoice>(entity =>
         {
-            entity.HasKey(e => e.PaymentId).HasName("PK__PaymentI__ED1FC9EAC50CCD1B");
+            entity.HasKey(e => e.PaymentId).HasName("PK__PaymentI__ED1FC9EA32F12F92");
 
             entity.Property(e => e.PaymentId).HasColumnName("payment_id");
             entity.Property(e => e.Amount)
@@ -161,12 +171,12 @@ public partial class BookMothContext : DbContext
             entity.HasOne(d => d.AuthorWallet).WithMany(p => p.PaymentInvoices)
                 .HasForeignKey(d => d.AuthorWalletId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__PaymentIn__autho__76969D2E");
+                .HasConstraintName("FK__PaymentIn__autho__6A30C649");
         });
 
         modelBuilder.Entity<Post>(entity =>
         {
-            entity.HasKey(e => e.PostId).HasName("PK__Posts__3ED78766E882315D");
+            entity.HasKey(e => e.PostId).HasName("PK__Posts__3ED7876695AD0C51");
 
             entity.Property(e => e.PostId).HasColumnName("post_id");
             entity.Property(e => e.AuthorId).HasColumnName("author_id");
@@ -174,14 +184,16 @@ public partial class BookMothContext : DbContext
             entity.HasOne(d => d.Author).WithMany(p => p.Posts)
                 .HasForeignKey(d => d.AuthorId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Posts__author_id__656C112C");
+                .HasConstraintName("FK__Posts__author_id__6C190EBB");
         });
 
         modelBuilder.Entity<Profile>(entity =>
         {
-            entity.HasKey(e => e.ProfileId).HasName("PK__Profiles__AEBB701FA26566E5");
+            entity.HasKey(e => e.ProfileId).HasName("PK__Profiles__AEBB701F149FBCA3");
 
-            entity.HasIndex(e => e.Identifier, "UQ__Profiles__D112ED48154BAA16").IsUnique();
+            entity.HasIndex(e => e.Identifier, "UQ__Profiles__D112ED480CE1A0A6").IsUnique();
+
+            entity.HasIndex(e => e.Identifier, "UQ__Profiles__D112ED48DD3BF9BF").IsUnique();
 
             entity.Property(e => e.ProfileId).HasColumnName("profile_id");
             entity.Property(e => e.AccountId).HasColumnName("account_id");
@@ -195,15 +207,10 @@ public partial class BookMothContext : DbContext
                 .HasColumnName("coverphoto");
             entity.Property(e => e.FirstName)
                 .HasMaxLength(100)
-                .IsUnicode(false)
                 .HasColumnName("first_name");
-            entity.Property(e => e.Identifier)
-                .HasMaxLength(255)
-                .IsUnicode(false)
-                .HasColumnName("identifier");
+            entity.Property(e => e.Identifier).HasColumnName("identifier");
             entity.Property(e => e.LastName)
                 .HasMaxLength(100)
-                .IsUnicode(false)
                 .HasColumnName("last_name");
             entity.Property(e => e.Username)
                 .HasMaxLength(100)
@@ -213,7 +220,7 @@ public partial class BookMothContext : DbContext
             entity.HasOne(d => d.Account).WithMany(p => p.Profiles)
                 .HasForeignKey(d => d.AccountId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Profiles__accoun__5BE2A6F2");
+                .HasConstraintName("FK__Profiles__accoun__6E01572D");
 
             entity.HasMany(d => d.Followers).WithMany(p => p.Followings)
                 .UsingEntity<Dictionary<string, object>>(
@@ -221,14 +228,14 @@ public partial class BookMothContext : DbContext
                     r => r.HasOne<Profile>().WithMany()
                         .HasForeignKey("FollowerId")
                         .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName("FK__Follows__followe__68487DD7"),
+                        .HasConstraintName("FK__Follows__followe__6477ECF3"),
                     l => l.HasOne<Profile>().WithMany()
                         .HasForeignKey("FollowingId")
                         .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName("FK__Follows__followi__693CA210"),
+                        .HasConstraintName("FK__Follows__followi__66603565"),
                     j =>
                     {
-                        j.HasKey("FollowerId", "FollowingId").HasName("PK__Follows__CAC186A7FFAFC33F");
+                        j.HasKey("FollowerId", "FollowingId").HasName("PK__Follows__CAC186A7ED3C8859");
                         j.ToTable("Follows");
                         j.IndexerProperty<int>("FollowerId").HasColumnName("follower_id");
                         j.IndexerProperty<int>("FollowingId").HasColumnName("following_id");
@@ -240,14 +247,14 @@ public partial class BookMothContext : DbContext
                     r => r.HasOne<Profile>().WithMany()
                         .HasForeignKey("FollowingId")
                         .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName("FK__Follows__followi__693CA210"),
+                        .HasConstraintName("FK__Follows__followi__66603565"),
                     l => l.HasOne<Profile>().WithMany()
                         .HasForeignKey("FollowerId")
                         .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName("FK__Follows__followe__68487DD7"),
+                        .HasConstraintName("FK__Follows__followe__6477ECF3"),
                     j =>
                     {
-                        j.HasKey("FollowerId", "FollowingId").HasName("PK__Follows__CAC186A7FFAFC33F");
+                        j.HasKey("FollowerId", "FollowingId").HasName("PK__Follows__CAC186A7ED3C8859");
                         j.ToTable("Follows");
                         j.IndexerProperty<int>("FollowerId").HasColumnName("follower_id");
                         j.IndexerProperty<int>("FollowingId").HasColumnName("following_id");
@@ -256,7 +263,7 @@ public partial class BookMothContext : DbContext
 
         modelBuilder.Entity<PurchaseInvoice>(entity =>
         {
-            entity.HasKey(e => e.PurchaseId).HasName("PK__Purchase__87071CB99AB01F9F");
+            entity.HasKey(e => e.PurchaseId).HasName("PK__Purchase__87071CB992F4A029");
 
             entity.Property(e => e.PurchaseId).HasColumnName("purchase_id");
             entity.Property(e => e.BankInvoiceCode)
@@ -278,12 +285,34 @@ public partial class BookMothContext : DbContext
             entity.HasOne(d => d.Wallet).WithMany(p => p.PurchaseInvoices)
                 .HasForeignKey(d => d.WalletId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__PurchaseI__walle__70DDC3D8");
+                .HasConstraintName("FK__PurchaseI__walle__6FE99F9F");
+        });
+
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(e => e.TokenId).HasName("PK__RefreshT__CB3C9E177B545548");
+
+            entity.HasIndex(e => e.Token, "IX_RefreshTokens_Token");
+
+            entity.Property(e => e.TokenId).HasColumnName("token_id");
+            entity.Property(e => e.AccountId).HasColumnName("account_id");
+            entity.Property(e => e.CreatedByIp).HasMaxLength(45);
+            entity.Property(e => e.CreatedDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.ExpiryDate).HasColumnType("datetime");
+            entity.Property(e => e.RevokedByIp).HasMaxLength(45);
+            entity.Property(e => e.RevokedDate).HasColumnType("datetime");
+            entity.Property(e => e.Token).HasMaxLength(512);
+
+            entity.HasOne(d => d.Account).WithMany(p => p.RefreshTokens)
+                .HasForeignKey(d => d.AccountId)
+                .HasConstraintName("FK_RefreshTokens_Accounts");
         });
 
         modelBuilder.Entity<Wallet>(entity =>
         {
-            entity.HasKey(e => e.WalletId).HasName("PK__Wallets__0EE6F041D3696776");
+            entity.HasKey(e => e.WalletId).HasName("PK__Wallets__0EE6F041A981C8AC");
 
             entity.Property(e => e.WalletId).HasColumnName("wallet_id");
             entity.Property(e => e.AccountId).HasColumnName("account_id");
@@ -298,12 +327,12 @@ public partial class BookMothContext : DbContext
             entity.HasOne(d => d.Account).WithMany(p => p.Wallets)
                 .HasForeignKey(d => d.AccountId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Wallets__account__6E01572D");
+                .HasConstraintName("FK__Wallets__account__72C60C4A");
         });
 
         modelBuilder.Entity<Work>(entity =>
         {
-            entity.HasKey(e => e.WorkId).HasName("PK__Works__110F4747DA6B6625");
+            entity.HasKey(e => e.WorkId).HasName("PK__Works__110F47476C258B79");
 
             entity.Property(e => e.WorkId).HasColumnName("work_id");
             entity.Property(e => e.AvatarUrl)
@@ -323,17 +352,17 @@ public partial class BookMothContext : DbContext
             entity.HasOne(d => d.Category).WithMany(p => p.Works)
                 .HasForeignKey(d => d.CategoryId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Works__category___628FA481");
+                .HasConstraintName("FK__Works__category___74AE54BC");
 
             entity.HasOne(d => d.Chapter).WithMany(p => p.Works)
                 .HasForeignKey(d => d.ChapterId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Works__chapter_i__619B8048");
+                .HasConstraintName("FK__Works__chapter_i__76969D2E");
 
             entity.HasOne(d => d.Profile).WithMany(p => p.Works)
                 .HasForeignKey(d => d.ProfileId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Works__profile_i__60A75C0F");
+                .HasConstraintName("FK__Works__profile_i__787EE5A0");
         });
 
         OnModelCreatingPartial(modelBuilder);
