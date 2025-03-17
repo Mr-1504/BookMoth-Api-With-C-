@@ -18,9 +18,11 @@ public partial class Profile
     public string? Avatar { get; set; }
 
     public string? Coverphoto { get; set; }
-
-    public string? Identifier { get; set; }
     public int? Gender { get; set; }
+
+    public DateTime? Birth { get; set; }
+
+    public bool? Identifier { get; set; }
 
     public virtual Account Account { get; set; } = null!;
 
