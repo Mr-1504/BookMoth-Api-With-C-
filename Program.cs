@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
 using BookMoth_Api_With_C_.Models;
 using BookMoth_Api_With_C_.Services;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,6 +44,13 @@ builder.Services.AddTransient<EmailService>();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 
 var app = builder.Build();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(Directory.GetCurrentDirectory(), "Resources/Images")),
+    RequestPath = "/images"
+});
+
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
