@@ -1,0 +1,7 @@
+﻿namespace BookMoth_Api_With_C_.RequestModels
+{
+    public class GoogleLoginRequest
+    {
+        public string IdToken { get; set; }
+    }
+}
