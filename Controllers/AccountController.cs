@@ -189,6 +189,16 @@ namespace BookMoth_Api_With_C_.Controllers
                     _context.Profiles.Add(profile);
                     _context.SaveChanges();
 
+                    var wallet = new Wallet
+                    {
+                        AccountId = newAccount.AccountId,
+                        Balance = 0,
+                        Status = 1
+                    };
+
+                    _context.Wallets.Add(wallet);
+                    _context.SaveChanges();
+
                     var jwtToken = _jwtService.GenerateSecurityToken(newAccount);
                     var refreshToken = _jwtService.GenerateRefreshToken();
                     var hashedToken = _jwtService.HashToken(refreshToken);
@@ -353,6 +363,16 @@ namespace BookMoth_Api_With_C_.Controllers
                     _context.Profiles.Add(profile);
                     _context.SaveChanges();
 
+                    var wallet = new Wallet
+                    {
+                        AccountId = newAccount.AccountId,
+                        Balance = 0,
+                        Status = 1
+                    };
+
+                    _context.Wallets.Add(wallet);
+                    _context.SaveChanges();
+
                     var jwtToken = _jwtService.GenerateSecurityToken(newAccount);
                     var refreshToken = _jwtService.GenerateRefreshToken();
                     var hashedToken = _jwtService.HashToken(refreshToken);
@@ -421,7 +441,6 @@ namespace BookMoth_Api_With_C_.Controllers
 
             using (var transaction = _context.Database.BeginTransaction())
             {
-
                 try
                 {
                     if (oldToken != null)

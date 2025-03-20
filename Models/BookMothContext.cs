@@ -22,6 +22,7 @@ public partial class BookMothContext : DbContext
     public virtual DbSet<Category> Categories { get; set; }
 
     public virtual DbSet<Chapter> Chapters { get; set; }
+    public virtual DbSet<FcmTokens> FcmTokens { get; set; }
 
     public virtual DbSet<Iachistory> Iachistories { get; set; }
 
@@ -34,6 +35,7 @@ public partial class BookMothContext : DbContext
     public virtual DbSet<PurchaseInvoice> PurchaseInvoices { get; set; }
 
     public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
+    public virtual DbSet<Transactions> Transactions { get; set; }
 
     public virtual DbSet<Wallet> Wallets { get; set; }
 
@@ -111,6 +113,18 @@ public partial class BookMothContext : DbContext
             entity.Property(e => e.PostDate)
                 .HasColumnType("datetime")
                 .HasColumnName("post_date");
+        });
+
+        modelBuilder.Entity<FcmTokens>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__FcmToken__3214EC072C753747");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AccountId).HasColumnName("accountid");
+            entity.Property(e => e.Token)
+                .HasMaxLength(255)
+                .IsUnicode(false)
+                .HasColumnName("token");
+            entity.Property(e => e.DeviceId);
         });
 
         modelBuilder.Entity<Iachistory>(entity =>
@@ -310,6 +324,19 @@ public partial class BookMothContext : DbContext
                 .HasConstraintName("FK_RefreshTokens_Accounts");
         });
 
+        modelBuilder.Entity<Transactions>(entity =>
+        {
+            entity.HasKey(e => e.TransactionId).HasName("PK__Transact__85C600AFE98B2B63");
+            entity.Property(e => e.TransactionId).HasColumnName("transaction_id");
+            entity.Property(e => e.Amount)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("amount");
+            entity.Property(e => e.Created_At);
+            entity.Property(e => e.Status).HasColumnName("status");
+            entity.Property(e => e.TransactionType).HasColumnName("transaction_type");
+            entity.Property(e => e.WalletId).HasColumnName("wallet_id");
+        });
+
         modelBuilder.Entity<Wallet>(entity =>
         {
             entity.HasKey(e => e.WalletId).HasName("PK__Wallets__0EE6F041A981C8AC");
@@ -319,10 +346,7 @@ public partial class BookMothContext : DbContext
             entity.Property(e => e.Balance)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("balance");
-            entity.Property(e => e.Status)
-                .HasMaxLength(50)
-                .IsUnicode(false)
-                .HasColumnName("status");
+            entity.Property(e => e.Status).HasColumnName("status");
 
             entity.HasOne(d => d.Account).WithMany(p => p.Wallets)
                 .HasForeignKey(d => d.AccountId)
