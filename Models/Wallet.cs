@@ -11,7 +11,7 @@ public partial class Wallet
 
     public decimal? Balance { get; set; }
 
-    public string? Status { get; set; }
+    public int Status { get; set; }
 
     public virtual Account Account { get; set; } = null!;
 

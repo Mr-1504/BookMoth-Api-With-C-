@@ -1,4 +1,4 @@
-using BookMoth_Api_With_C_.Middleware;
+﻿using BookMoth_Api_With_C_.Middleware;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using BookMoth_Api_With_C_.Models;
 using BookMoth_Api_With_C_.Services;
 using Microsoft.Extensions.FileProviders;
+using BookMoth_Api_With_C_.ZaloPay;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,8 +41,15 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddMemoryCache();
 
+builder.Services.AddScoped<ZaloPayHelper>();
 builder.Services.AddTransient<EmailService>();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+
+builder.Services.AddHttpClient(); // Đăng ký IHttpClientFactory
+builder.Services.AddSingleton<ZaloPayService>();
+builder.Services.AddHostedService<TransactionBackgroundService>();
+builder.Services.AddSingleton<FcmService>();
+
 
 var app = builder.Build();
 app.UseStaticFiles(new StaticFileOptions
@@ -51,6 +59,17 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/images"
 });
 
+var ngrokUrl = builder.Configuration["ZaloPay:NgrokTunnels"];
+var ngrokPath = builder.Configuration["ZaloPay:NgrokPath"];
+
+// Khởi động NgrokHelper khi ứng dụng bắt đầu
+app.Lifetime.ApplicationStarted.Register(async () =>
+{
+    NgrokHelper.StartNgrok(ngrokPath); 
+    await Task.Delay(5000); // Chờ Ngrok khởi động
+    var publicUrl = await NgrokHelper.GetPublicUrl(ngrokUrl);
+    Console.WriteLine($"Ngrok Public URL: {publicUrl}");
+});
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
