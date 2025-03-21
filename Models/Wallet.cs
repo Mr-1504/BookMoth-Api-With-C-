@@ -9,7 +9,7 @@ public partial class Wallet
 
     public int AccountId { get; set; }
 
-    public decimal? Balance { get; set; }
+    public decimal Balance { get; set; }
 
     public int Status { get; set; }
 
