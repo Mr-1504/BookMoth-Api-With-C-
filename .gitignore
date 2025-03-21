@@ -273,3 +273,5 @@ __pycache__/
 
 # End of https://www.toptal.com/developers/gitignore/api/aspnetcore
 Resources/bookmoth-firebase.json
+Resources/ddos_detection.onnx
+Resources/ddos_detection_ir9.onnx

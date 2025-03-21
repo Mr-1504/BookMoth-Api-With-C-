@@ -335,6 +335,7 @@ public partial class BookMothContext : DbContext
             entity.Property(e => e.Status).HasColumnName("status");
             entity.Property(e => e.TransactionType).HasColumnName("transaction_type");
             entity.Property(e => e.WalletId).HasColumnName("wallet_id");
+            entity.Property(e => e.Description).HasColumnName("description");
         });
 
         modelBuilder.Entity<Wallet>(entity =>
