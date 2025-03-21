@@ -7,6 +7,7 @@ using BookMoth_Api_With_C_.Models;
 using BookMoth_Api_With_C_.Services;
 using Microsoft.Extensions.FileProviders;
 using BookMoth_Api_With_C_.ZaloPay;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +51,12 @@ builder.Services.AddSingleton<ZaloPayService>();
 builder.Services.AddHostedService<TransactionBackgroundService>();
 builder.Services.AddSingleton<FcmService>();
 
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .WriteTo.File("logs/log.txt", rollingInterval: RollingInterval.Day)
+    .CreateLogger();
+
+builder.Host.UseSerilog();
 
 var app = builder.Build();
 app.UseStaticFiles(new StaticFileOptions
@@ -79,6 +86,7 @@ if (app.Environment.IsDevelopment())
 }
 
 //app.UseMiddleware<ApiKeyMiddleware>();
+app.UseMiddleware<DdosDetectionMiddleware>();
 app.UseHttpsRedirection();
 
 app.UseAuthentication();

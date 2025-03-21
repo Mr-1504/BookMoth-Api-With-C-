@@ -22,17 +22,17 @@ namespace BookMoth_Api_With_C_.Services
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                int delayTime = 10000;
+                int delayTime = 5000;
                 using (var scope = _scopeFactory.CreateScope())
                 {
                     var zaloPayService = scope.ServiceProvider.GetRequiredService<ZaloPayService>();
                     var context = scope.ServiceProvider.GetRequiredService<BookMothContext>();
 
                     var pendingTransactions = context.Transactions
-                        .Where(t => t.Status == 0) // Chỉ kiểm tra giao dịch đang chờ xử lý
+                        .Where(t => t.Status == 0) 
                         .ToList();
 
-                    delayTime = pendingTransactions.Any() ? 10000 : 30000;
+                    delayTime = pendingTransactions.Any() ? 5000 : 20000;
 
                     bool hasChanges = false;
 
@@ -41,11 +41,10 @@ namespace BookMoth_Api_With_C_.Services
                         DateTime vietnamTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
                         try
                         {
-                            var apptransid = transaction.Created_At.ToString("yyMMdd") + "_" + transaction.TransactionId.ToString().PadLeft(10, '0');
-                            var response = await zaloPayService.GetTransactionStatusAsync(apptransid);
+                            var response = await zaloPayService.GetTransactionStatusAsync(transaction.TransactionId);
                             var jsonResponse = JObject.Parse(response);
 
-                            if ((int)jsonResponse["returncode"] == 1) // Thành công
+                            if ((int)jsonResponse["returncode"] == 1)
                             {
                                 transaction.Status = 1;
                                 var wallet = context.Wallets.SingleOrDefault(w => w.WalletId == transaction.WalletId);
@@ -62,6 +61,11 @@ namespace BookMoth_Api_With_C_.Services
 
                                 if (deviceTokens.Any())
                                 {
+                                    long timestamp = long.Parse(jsonResponse["apptime"].ToString());
+                                    DateTime time = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime.AddHours(7);
+
+
+
                                     var notificationTasks = deviceTokens.Select(async token =>
                                     {
                                         try
@@ -69,7 +73,11 @@ namespace BookMoth_Api_With_C_.Services
                                             await _fcmService.SendNotificationAsync(
                                                 token,
                                                 "Thanh toán thành công",
-                                                $"Bạn đã nạp {transaction.Amount} VNĐ vào ví thành công!"
+                                                $"Bạn vừa thực hiện thành công một giao dịch\n" +
+                                                $"Thời gian: {time.ToString("yyyy-MM-dd HH:mm:ss")}\n" +
+                                                $"Giao dịch: +{transaction.Amount.ToString("N0")} VND\n" +
+                                                $"Số dư hiện tại: {wallet.Balance.ToString("N0")} VND\n" +
+                                                $"Nội dung: Nạp tiền: {transaction.Description}"
                                             );
                                         }
                                         catch (Exception ex)
