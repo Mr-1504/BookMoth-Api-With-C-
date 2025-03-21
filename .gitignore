@@ -275,3 +275,4 @@ __pycache__/
 Resources/bookmoth-firebase.json
 Resources/ddos_detection.onnx
 Resources/ddos_detection_ir9.onnx
+/logs
