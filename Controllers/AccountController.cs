@@ -181,7 +181,7 @@ namespace BookMoth_Api_With_C_.Controllers
                         LastName = payload.FamilyName,
                         Username = "member_" + count.ToString(),
                         Avatar = payload.Picture,
-                        Coverphoto = "",
+                        Coverphoto = url + "cover.jpg",
                         Identifier = false,
                         Gender = googleInfo.Gender,
                         Birth = googleInfo.BirthDate
@@ -354,7 +354,7 @@ namespace BookMoth_Api_With_C_.Controllers
                         LastName = register.LastName,
                         Username = "member_" + count.ToString(),
                         Avatar = url + "avatar.jpeg",
-                        Coverphoto = register.Coverphoto,
+                        Coverphoto = url + "cover.jpg",
                         Identifier = false,
                         Gender = register.Gender,
                         Birth = dateOfBirth
@@ -622,7 +622,7 @@ namespace BookMoth_Api_With_C_.Controllers
             }
         }
 
-        [HttpDelete("logout")]
+        [HttpPost("logout")]
         public async Task<IActionResult> logout([FromBody] LogoutRequest logoutRquest)
         {
             var accId = User.FindFirst("accountId")?.Value;
