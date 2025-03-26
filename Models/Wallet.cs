@@ -10,6 +10,8 @@ public partial class Wallet
     public int AccountId { get; set; }
 
     public decimal Balance { get; set; }
+    public required string HashedPin { get; set; }
+    public required string Salt { get; set; }
 
     public int Status { get; set; }
 
