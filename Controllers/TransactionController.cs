@@ -7,6 +7,8 @@ using Microsoft.Extensions.Caching.Memory;
 using BookMoth_Api_With_C_.ZaloPay;
 using Newtonsoft.Json;
 using BookMoth_Api_With_C_.ZaloPay.Crypto;
+using Microsoft.EntityFrameworkCore;
+using Org.BouncyCastle.Utilities;
 
 namespace BookMoth_Api_With_C_.Controllers
 {
@@ -49,38 +51,59 @@ namespace BookMoth_Api_With_C_.Controllers
         [HttpPost("deposit")]
         public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequest request)
         {
+            if (request.Amount == null)
+            {
+                return BadRequest(new { message = "Amount is required" });
+            }
+
             var accId = User.FindFirst("accountId")?.Value;
             if (accId == null)
             {
                 return Unauthorized(new { message = "Unauthorized" });
             }
 
+            if (!int.TryParse(accId, out var accountId))
+            {
+                return BadRequest();
+            }
+            var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.AccountId == accountId);
+            if (profile == null)
+            {
+                return NotFound(new { message = "Profile not found" });
+            }
 
-            var accountId = int.Parse(accId);
-            var countTrans = _context.Transactions.Count() + 1;
-            var embeddata = NgrokHelper.CreateEmbeddataWithPublicUrl();
-            var items = new[]{
-                new { itemid = "knb", itemname = "kim nguyen bao", itemprice = 198400, itemquantity = 1 }
-            };
+            var desc = (request.Description == null || request.Description == "") ?
+                profile.LastName + " " + profile.FirstName + " NẠP TIỀN" : request.Description;
 
-            DateTime vietnamTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
+            var today = DateTime.Today;
+            var tomorrow = today.AddDays(1);
+            var countTrans = _context.Transactions.
+                Where(t => t.Created_At >= today && t.Created_At < tomorrow)
+                .Count() + 1;
+
+
+            var items = "[]";
+
+            DateTime vietnamTime = TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time")
+            );
             Console.WriteLine(vietnamTime);
 
-
+            var transid = vietnamTime.ToString("yyMMdd_HHmmss") + "_BK" + countTrans.ToString().PadLeft(5, '0');
             var param = new Dictionary<string, string>
             {
-                { "appid", _appId },
+                { "appid", "553" },
                 { "appuser", accId },
                 { "apptime", Util.GetTimeStamp().ToString() },
                 { "amount", request.Amount.ToString() },
-                { "apptransid", vietnamTime.ToString("yyMMdd") + "_" + countTrans.ToString().PadLeft(10, '0')  },
-                { "embeddata", JsonConvert.SerializeObject(embeddata) },
+                { "apptransid", transid},
+                { "embeddata", JsonConvert.SerializeObject(new { redirecturl = NgrokHelper.CreateEmbeddataWithPublicUrl()}) },
                 { "item", JsonConvert.SerializeObject(items) },
-                { "description", request.Description },
+                { "description", desc },
                 { "bankcode", "zalopayapp" }
             };
 
-            var data = _appId + "|" + param["apptransid"] + "|" + param["appuser"] + "|" + param["amount"] + "|"
+            var data = "553" + "|" + param["apptransid"] + "|" + param["appuser"] + "|" + param["amount"] + "|"
                 + param["apptime"] + "|" + param["embeddata"] + "|" + param["item"];
             param.Add("mac", HmacHelper.Compute(ZaloPayHMAC.HMACSHA256, _key1, data));
 
@@ -96,27 +119,33 @@ namespace BookMoth_Api_With_C_.Controllers
                         var wallet = _context.Wallets.SingleOrDefault(w => w.AccountId.Equals(accountId));
                         if (wallet == null)
                         {
-                            return UnprocessableEntity(new { success = false, message = "Wallet not found" });
+                            return NotFound(new { success = false, message = "Wallet not found" });
                         }
 
                         var transaction = new Transactions
                         {
+                            TransactionId = transid,
                             WalletId = wallet.WalletId,
                             Amount = Decimal.Parse(request.Amount.ToString()),
                             TransactionType = request.TransactionType,
                             Status = 0,
-                            Created_At = vietnamTime
+                            Created_At = vietnamTime,
+                            Description = desc
                         };
                         _context.Transactions.Add(transaction);
                         _context.SaveChanges();
                         trans.Commit();
-                        return Ok(new { success = true, data = order["zptranstoken"] });
+                        return Ok(new
+                        {
+                            zaloToken = order["zptranstoken"],
+                            transId = transid
+                        });
+
                     }
                     catch (Exception e)
                     {
                         trans.Rollback();
                         return UnprocessableEntity(new { success = false, message = e.Message });
-
                     }
                 }
             }
@@ -197,5 +226,27 @@ namespace BookMoth_Api_With_C_.Controllers
                 return UnprocessableEntity(new { success = false, message = ex.Message });
             }
         }
+
+        //[HttpGet("history")]
+        //public async Task<IActionResult> getHistory()
+        //{
+        //    var accId = User.FindFirst("accountId")?.Value;
+        //    if (accId == null)
+        //    {
+        //        return Unauthorized(new { message = "Unauthorized" });
+        //    }
+
+        //    if (string.IsNullOrEmpty(accId) || !int.TryParse(accId, out var accountId))
+        //    {
+        //        return BadRequest(new { message = "Invalid accountId" });
+        //    }
+
+        //    if (transactions.Any())
+        //    {
+        //        return NoContent();
+        //    }
+
+        //    return Ok(transactions);
+        //}
     }
 }

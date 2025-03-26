@@ -49,5 +49,18 @@ namespace BookMoth_Api_With_C_.Controllers
 
             return Ok(profile);
         }
+
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> getById(int id)
+        {
+            var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.ProfileId == id);
+
+            if (profile == null)
+            {
+                return NotFound(new { message = $"Profile {id} not found" });
+            }
+
+            return Ok(profile);
+        }
     }
 }

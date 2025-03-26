@@ -1,6 +1,5 @@
 ﻿using BookMoth_Api_With_C_.Models;
 using BookMoth_Api_With_C_.RequestModels;
-using BookMoth_Api_With_C_.ResponseModels;
 using BookMoth_Api_With_C_.Services;
 using Google.Apis.Auth;
 using Microsoft.AspNetCore.Mvc;
@@ -181,22 +180,12 @@ namespace BookMoth_Api_With_C_.Controllers
                         LastName = payload.FamilyName,
                         Username = "member_" + count.ToString(),
                         Avatar = payload.Picture,
-                        Coverphoto = "",
+                        Coverphoto = url + "cover.jpg",
                         Identifier = false,
                         Gender = googleInfo.Gender,
                         Birth = googleInfo.BirthDate
                     };
                     _context.Profiles.Add(profile);
-                    _context.SaveChanges();
-
-                    var wallet = new Wallet
-                    {
-                        AccountId = newAccount.AccountId,
-                        Balance = 0,
-                        Status = 1
-                    };
-
-                    _context.Wallets.Add(wallet);
                     _context.SaveChanges();
 
                     var jwtToken = _jwtService.GenerateSecurityToken(newAccount);
@@ -354,23 +343,13 @@ namespace BookMoth_Api_With_C_.Controllers
                         LastName = register.LastName,
                         Username = "member_" + count.ToString(),
                         Avatar = url + "avatar.jpeg",
-                        Coverphoto = register.Coverphoto,
+                        Coverphoto = url + "cover.jpg",
                         Identifier = false,
                         Gender = register.Gender,
                         Birth = dateOfBirth
                     };
 
                     _context.Profiles.Add(profile);
-                    _context.SaveChanges();
-
-                    var wallet = new Wallet
-                    {
-                        AccountId = newAccount.AccountId,
-                        Balance = 0,
-                        Status = 1
-                    };
-
-                    _context.Wallets.Add(wallet);
                     _context.SaveChanges();
 
                     var jwtToken = _jwtService.GenerateSecurityToken(newAccount);
@@ -620,6 +599,40 @@ namespace BookMoth_Api_With_C_.Controllers
             {
                 return StatusCode(500);
             }
+        }
+
+        [HttpPost("logout")]
+        public async Task<IActionResult> logout([FromBody] LogoutRequest logoutRquest)
+        {
+            var accId = User.FindFirst("accountId")?.Value;
+            if (accId == null || logoutRquest == null)
+            {
+                return BadRequest();
+            }
+
+            if (!int.TryParse(accId, out var id))
+            {
+                return BadRequest();
+            }
+
+            var account = await _context.Accounts.FirstOrDefaultAsync(a => a.AccountId == id);
+            if (account == null)
+            {
+                return NotFound();
+            }
+            // Xóa token cũ sau khi token mới đã được lưu
+            await _context.RefreshTokens.Where(
+                r => r.AccountId == id)
+                .ExecuteDeleteAsync();
+
+            await _context.SaveChangesAsync();
+
+            await _context.FcmTokens.Where(
+                r => r.AccountId == id)
+                .ExecuteDeleteAsync();
+            await _context.SaveChangesAsync();
+
+            return Ok();
         }
     }
 }

@@ -1,4 +1,7 @@
-﻿namespace BookMoth_Api_With_C_.Services
+﻿using System.Globalization;
+using System.Text;
+
+namespace BookMoth_Api_With_C_.Services
 {
     public class Utilites
     {
@@ -29,6 +32,23 @@
             string lastName = string.Join(" ", parts[..^1]);
 
             return (firstName, lastName);
+        }
+
+        public static string RemoveDiacritics(string text)
+        {
+            string normalized = text.Normalize(NormalizationForm.FormD);
+            StringBuilder builder = new StringBuilder();
+
+            foreach (char c in normalized)
+            {
+                UnicodeCategory category = CharUnicodeInfo.GetUnicodeCategory(c);
+                if (category != UnicodeCategory.NonSpacingMark)
+                {
+                    builder.Append(c);
+                }
+            }
+
+            return builder.ToString().Normalize(NormalizationForm.FormC);
         }
     }
 }
