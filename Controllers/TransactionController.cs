@@ -135,13 +135,17 @@ namespace BookMoth_Api_With_C_.Controllers
                         _context.Transactions.Add(transaction);
                         _context.SaveChanges();
                         trans.Commit();
-                        return Ok(new { success = true, data = order["zptranstoken"] });
+                        return Ok(new
+                        {
+                            zaloToken = order["zptranstoken"],
+                            transId = transid
+                        });
+
                     }
                     catch (Exception e)
                     {
                         trans.Rollback();
                         return UnprocessableEntity(new { success = false, message = e.Message });
-
                     }
                 }
             }

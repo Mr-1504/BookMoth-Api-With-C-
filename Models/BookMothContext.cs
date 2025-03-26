@@ -347,6 +347,8 @@ public partial class BookMothContext : DbContext
             entity.Property(e => e.Balance)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("balance");
+            entity.Property(e => e.HashedPin);
+            entity.Property(e => e.Salt);
             entity.Property(e => e.Status).HasColumnName("status");
 
             entity.HasOne(d => d.Account).WithMany(p => p.Wallets)
