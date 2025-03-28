@@ -93,7 +93,7 @@ if (app.Environment.IsDevelopment())
 }
 
 //app.UseMiddleware<ApiKeyMiddleware>();
-app.UseMiddleware<DdosDetectionMiddleware>();
+//app.UseMiddleware<DdosDetectionMiddleware>();
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
