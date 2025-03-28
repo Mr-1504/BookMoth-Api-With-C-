@@ -180,7 +180,7 @@ namespace BookMoth_Api_With_C_.Controllers
                         LastName = payload.FamilyName,
                         Username = "member_" + count.ToString(),
                         Avatar = payload.Picture,
-                        Coverphoto = url + "cover.jpg",
+                        Coverphoto = url + "covers/cover.jpg",
                         Identifier = false,
                         Gender = googleInfo.Gender,
                         Birth = googleInfo.BirthDate
@@ -342,8 +342,8 @@ namespace BookMoth_Api_With_C_.Controllers
                         FirstName = register.FirstName,
                         LastName = register.LastName,
                         Username = "member_" + count.ToString(),
-                        Avatar = url + "avatar.jpeg",
-                        Coverphoto = url + "cover.jpg",
+                        Avatar = url + "avatars/avatar.jpeg",
+                        Coverphoto = url + "covers/cover.jpg",
                         Identifier = false,
                         Gender = register.Gender,
                         Birth = dateOfBirth
