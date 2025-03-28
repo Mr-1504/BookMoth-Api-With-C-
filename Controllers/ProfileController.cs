@@ -284,7 +284,7 @@ namespace BookMoth_Api_With_C_.Controllers
                     await _context.SaveChangesAsync();
                     await trans.CommitAsync();
 
-                    return Ok(new { message = "Cập nhật profile thành công" });
+                    return Ok(profile);
                 }
                 catch (Exception ex)
                 {
