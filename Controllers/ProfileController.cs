@@ -5,6 +5,7 @@ using BookMoth_Api_With_C_.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using System.Globalization;
 
 namespace BookMoth_Api_With_C_.Controllers
 {
@@ -13,6 +14,7 @@ namespace BookMoth_Api_With_C_.Controllers
     public class ProfileController : ControllerBase
     {
         private BookMothContext _context;
+        private string url = "http://127.0.0.1:7100/images/";
 
         public ProfileController(
             BookMothContext context)
@@ -20,6 +22,10 @@ namespace BookMoth_Api_With_C_.Controllers
             _context = context;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         [HttpGet("me")]
         public async Task<IActionResult> GetMe()
         {
@@ -180,6 +186,112 @@ namespace BookMoth_Api_With_C_.Controllers
             }
 
             return Ok(new { exists = false, message = "Username hợp lệ!" });
+        }
+
+        /// <summary>
+        ///     
+        /// </summary>
+        /// <param name="firstName"></param>
+        /// <param name="lastName"></param>
+        /// <param name="username"></param>
+        /// <param name="avatar"></param>
+        /// <param name="cover"></param>
+        /// <param name="gender"></param>
+        /// <param name="identifier"></param>
+        /// <param name="birth"></param>
+        /// <returns></returns>
+        [HttpPatch("edit")]
+        public async Task<IActionResult> EditProfile([FromBody] EditProflieRequest request)
+        {
+            if (request == null)
+            {
+                return BadRequest(new { message = "invalid request" });
+            }
+
+            var accountIdClaim = User.FindFirst("accountId")?.Value;
+            if (accountIdClaim == null)
+            {
+                return Unauthorized(new { message = "User not authenticated" });
+            }
+
+            if (!int.TryParse(accountIdClaim, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID" });
+            }
+
+            using (var trans = await _context.Database.BeginTransactionAsync())
+            {
+                try
+                {
+                    var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.AccountId == accountId);
+
+                    if (profile == null)
+                    {
+                        return NotFound(new { message = "Profile not found" });
+                    }
+
+                    if (request.Avatar != null && request.Avatar.Length > 0)
+                    {
+                        var avatarPath = Path.Combine("~/Resources/Images/avatars", profile.ProfileId.ToString());
+                        using (var stream = new FileStream(avatarPath, FileMode.Create))
+                        {
+                            await request.Avatar.CopyToAsync(stream);
+                            profile.Avatar = $"{url}{profile.ProfileId}";
+                        }
+                    }
+
+                    // Xử lý cover nếu có
+                    if (request.Cover != null && request.Cover.Length > 0)
+                    {
+                        var coverPath = Path.Combine("~/Resources/Images/covers", profile.ProfileId.ToString());
+                        using (var stream = new FileStream(coverPath, FileMode.Create))
+                        {
+                            await request.Cover.CopyToAsync(stream);
+                            profile.Coverphoto = $"{url}{profile.ProfileId}";
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(request.FirstName))
+                    {
+                        profile.FirstName = request.FirstName;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(request.LastName))
+                    {
+                        profile.LastName = request.LastName;
+                    }
+
+                    if (!string.IsNullOrEmpty(request.Username))
+                    {
+                        profile.Username = request.Username;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(request.Birth))
+                    {
+                        profile.Birth = DateTime.ParseExact(request.Birth, "dd/MM/yyyy", CultureInfo.InvariantCulture);
+                    }
+
+                    if (profile.Gender.HasValue && profile.Gender >= 0)
+                    {
+                        profile.Gender = profile.Gender;
+                    }
+
+                    if (request.Identifier.HasValue)
+                    {
+                        profile.Identifier = request.Identifier;
+                    }
+
+                    await _context.SaveChangesAsync();
+                    await trans.CommitAsync();
+
+                    return Ok(new { message = "Cập nhật profile thành công" });
+                }
+                catch (Exception ex)
+                {
+                    trans.Rollback();
+                    return UnprocessableEntity(new { message = ex.Message });
+                }
+            }
         }
     }
 }
