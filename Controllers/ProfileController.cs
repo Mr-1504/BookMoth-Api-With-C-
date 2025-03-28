@@ -201,7 +201,7 @@ namespace BookMoth_Api_With_C_.Controllers
         /// <param name="birth"></param>
         /// <returns></returns>
         [HttpPatch("edit")]
-        public async Task<IActionResult> EditProfile([FromBody] EditProflieRequest request)
+        public async Task<IActionResult> EditProfile([FromForm] EditProflieRequest request)
         {
             if (request == null)
             {
@@ -232,22 +232,22 @@ namespace BookMoth_Api_With_C_.Controllers
 
                     if (request.Avatar != null && request.Avatar.Length > 0)
                     {
-                        var avatarPath = Path.Combine("~/Resources/Images/avatars", profile.ProfileId.ToString());
+                        var avatarPath = Path.Combine("Resources/Images/avatars", profile.ProfileId.ToString() + ".png");
                         using (var stream = new FileStream(avatarPath, FileMode.Create))
                         {
                             await request.Avatar.CopyToAsync(stream);
-                            profile.Avatar = $"{url}{profile.ProfileId}";
+                            profile.Avatar = $"{url}avatars/{profile.ProfileId}.png";
                         }
                     }
 
                     // Xử lý cover nếu có
                     if (request.Cover != null && request.Cover.Length > 0)
                     {
-                        var coverPath = Path.Combine("~/Resources/Images/covers", profile.ProfileId.ToString());
+                        var coverPath = Path.Combine("Resources/Images/covers", profile.ProfileId.ToString() + ".png");
                         using (var stream = new FileStream(coverPath, FileMode.Create))
                         {
                             await request.Cover.CopyToAsync(stream);
-                            profile.Coverphoto = $"{url}{profile.ProfileId}";
+                            profile.Coverphoto = $"{url}covers/{profile.ProfileId}.png";
                         }
                     }
 
