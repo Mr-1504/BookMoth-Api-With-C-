@@ -8,6 +8,7 @@ using BookMoth_Api_With_C_.Services;
 using Microsoft.Extensions.FileProviders;
 using BookMoth_Api_With_C_.ZaloPay;
 using Serilog;
+using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,6 +52,12 @@ builder.Services.AddSingleton<ZaloPayService>();
 builder.Services.AddHostedService<TransactionBackgroundService>();
 builder.Services.AddSingleton<FcmService>();
 
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 50 * 1024 * 1024; // 50MB
+});
+
+
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .WriteTo.File("logs/log.txt", rollingInterval: RollingInterval.Day)
@@ -86,7 +93,7 @@ if (app.Environment.IsDevelopment())
 }
 
 //app.UseMiddleware<ApiKeyMiddleware>();
-app.UseMiddleware<DdosDetectionMiddleware>();
+//app.UseMiddleware<DdosDetectionMiddleware>();
 app.UseHttpsRedirection();
 
 app.UseAuthentication();

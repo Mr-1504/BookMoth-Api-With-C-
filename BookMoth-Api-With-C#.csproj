@@ -29,7 +29,6 @@
 
   <ItemGroup>
     <Folder Include="ZaloPay\" />
-    <Folder Include="Resources\Images\" />
   </ItemGroup>
 
 </Project>

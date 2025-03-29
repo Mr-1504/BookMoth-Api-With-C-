@@ -36,7 +36,7 @@ namespace BookMoth_Api_With_C_.Controllers
             var accId = User.FindFirst("accountId")?.Value;
             if (accId == null)
             {
-                return Unauthorized(new { message = "Unauthorized" });
+                return Unauthorized(new { message = "Unauthorized", error_code = "INVALID_TOKEN" });
             }
 
             var accountId = int.Parse(accId);
@@ -59,7 +59,7 @@ namespace BookMoth_Api_With_C_.Controllers
             var accId = User.FindFirst("accountId")?.Value;
             if (accId == null)
             {
-                return Unauthorized(new { message = "Unauthozired" });
+                return Unauthorized(new { message = "Unauthozired", error_code = "INVALID_TOKEN" });
             }
 
             var accountId = int.Parse(accId);
@@ -139,7 +139,7 @@ namespace BookMoth_Api_With_C_.Controllers
             var accId = User.FindFirst("accountId")?.Value;
             if (accId == null)
             {
-                return Unauthorized(new { message = "Unauthozired" });
+                return Unauthorized(new { message = "Unauthozired", error_code = "INVALID_TOKEN" });
             }
 
             var accountId = int.Parse(accId);
@@ -156,7 +156,7 @@ namespace BookMoth_Api_With_C_.Controllers
                 return Ok();
             }
 
-            return Unauthorized(new { message = "Invalid PIN" });
+            return Unauthorized(new { message = "Invalid PIN", error_code = "INVALID_PIN" });
         }
 
         [HttpGet("exist")]
@@ -165,7 +165,7 @@ namespace BookMoth_Api_With_C_.Controllers
             var accId = User.FindFirst("accountId")?.Value;
             if (accId == null)
             {
-                return Unauthorized(new { message = "Unauthozired" });
+                return Unauthorized(new { message = "Unauthozired", error_code = "INVALID_TOKEN" });
             }
 
             var accountId = int.Parse(accId);

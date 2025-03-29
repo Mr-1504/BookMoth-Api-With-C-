@@ -35,7 +35,7 @@ namespace BookMoth_Api_With_C_.Controllers
             var accId = User.FindFirst("accountId")?.Value;
             if (accId == null)
             {
-                return Unauthorized();
+                return Unauthorized(new {error_code = "INVALID_TOKEN" });
             }
 
             var accountId = int.Parse(accId);
