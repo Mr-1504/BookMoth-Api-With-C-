@@ -33,7 +33,7 @@ namespace BookMoth_Api_With_C_.Controllers
 
             if (accountId == null)
             {
-                return Unauthorized(new { message = "Unauthorized" });
+                return Unauthorized(new { message = "Unauthorized", error_code = "INVALID_TOKEN" });
             }
 
 
@@ -211,7 +211,7 @@ namespace BookMoth_Api_With_C_.Controllers
             var accountIdClaim = User.FindFirst("accountId")?.Value;
             if (accountIdClaim == null)
             {
-                return Unauthorized(new { message = "User not authenticated" });
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
             }
 
             if (!int.TryParse(accountIdClaim, out int accountId))
@@ -284,7 +284,7 @@ namespace BookMoth_Api_With_C_.Controllers
                     await _context.SaveChangesAsync();
                     await trans.CommitAsync();
 
-                    return Ok(new { message = "Cập nhật profile thành công" });
+                    return Ok(profile);
                 }
                 catch (Exception ex)
                 {
