@@ -26,13 +26,9 @@ public partial class BookMothContext : DbContext
 
     public virtual DbSet<Iachistory> Iachistories { get; set; }
 
-    public virtual DbSet<PaymentInvoice> PaymentInvoices { get; set; }
-
     public virtual DbSet<Post> Posts { get; set; }
 
     public virtual DbSet<Profile> Profiles { get; set; }
-
-    public virtual DbSet<PurchaseInvoice> PurchaseInvoices { get; set; }
 
     public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
     public virtual DbSet<Transactions> Transactions { get; set; }
@@ -40,10 +36,6 @@ public partial class BookMothContext : DbContext
     public virtual DbSet<Wallet> Wallets { get; set; }
 
     public virtual DbSet<Work> Works { get; set; }
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseSqlServer("Data Source=_1504_\\SQLEXPRESS;Initial Catalog=BookMoth;Integrated Security=True;Trust Server Certificate=True");
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -151,42 +143,9 @@ public partial class BookMothContext : DbContext
                 .IsUnicode(false)
                 .HasColumnName("product_code");
             entity.Property(e => e.TransactionType).HasColumnName("transaction_type");
-            entity.Property(e => e.WalletId).HasColumnName("wallet_id");
-
-            entity.HasOne(d => d.Wallet).WithMany(p => p.Iachistories)
-                .HasForeignKey(d => d.WalletId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__IACHistor__walle__68487DD7");
         });
 
-        modelBuilder.Entity<PaymentInvoice>(entity =>
-        {
-            entity.HasKey(e => e.PaymentId).HasName("PK__PaymentI__ED1FC9EA32F12F92");
-
-            entity.Property(e => e.PaymentId).HasColumnName("payment_id");
-            entity.Property(e => e.Amount)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("amount");
-            entity.Property(e => e.AuthorWalletId).HasColumnName("author_wallet_id");
-            entity.Property(e => e.BankInvoiceCode)
-                .HasMaxLength(100)
-                .IsUnicode(false)
-                .HasColumnName("bank_invoice_code");
-            entity.Property(e => e.BeginBalance)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("begin_balance");
-            entity.Property(e => e.EndBalance)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("end_balance");
-            entity.Property(e => e.PaymentDate)
-                .HasColumnType("datetime")
-                .HasColumnName("payment_date");
-
-            entity.HasOne(d => d.AuthorWallet).WithMany(p => p.PaymentInvoices)
-                .HasForeignKey(d => d.AuthorWalletId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__PaymentIn__autho__6A30C649");
-        });
+       
 
         modelBuilder.Entity<Post>(entity =>
         {
@@ -275,32 +234,6 @@ public partial class BookMothContext : DbContext
                     });
         });
 
-        modelBuilder.Entity<PurchaseInvoice>(entity =>
-        {
-            entity.HasKey(e => e.PurchaseId).HasName("PK__Purchase__87071CB992F4A029");
-
-            entity.Property(e => e.PurchaseId).HasColumnName("purchase_id");
-            entity.Property(e => e.BankInvoiceCode)
-                .HasMaxLength(100)
-                .IsUnicode(false)
-                .HasColumnName("bank_invoice_code");
-            entity.Property(e => e.BeginBalance)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("begin_balance");
-            entity.Property(e => e.EndBalance)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("end_balance");
-            entity.Property(e => e.PurchaseDate)
-                .HasColumnType("datetime")
-                .HasColumnName("purchase_date");
-            entity.Property(e => e.Quantity).HasColumnName("quantity");
-            entity.Property(e => e.WalletId).HasColumnName("wallet_id");
-
-            entity.HasOne(d => d.Wallet).WithMany(p => p.PurchaseInvoices)
-                .HasForeignKey(d => d.WalletId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__PurchaseI__walle__6FE99F9F");
-        });
 
         modelBuilder.Entity<RefreshToken>(entity =>
         {
@@ -334,7 +267,6 @@ public partial class BookMothContext : DbContext
             entity.Property(e => e.Created_At);
             entity.Property(e => e.Status).HasColumnName("status");
             entity.Property(e => e.TransactionType).HasColumnName("transaction_type");
-            entity.Property(e => e.WalletId).HasColumnName("wallet_id");
             entity.Property(e => e.Description).HasColumnName("description");
         });
 
