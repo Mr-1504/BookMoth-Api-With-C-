@@ -47,11 +47,12 @@ namespace BookMoth_Api_With_C_.Services
                             if ((int)jsonResponse["returncode"] == 1)
                             {
                                 transaction.Status = 1;
-                                var wallet = context.Wallets.SingleOrDefault(w => w.WalletId == transaction.WalletId);
+                                var wallet = context.Wallets.SingleOrDefault(w => w.WalletId == transaction.ReceiverWalletId);
                                 if (wallet != null)
                                 {
                                     wallet.Balance += transaction.Amount;
                                 }
+
                                 hasChanges = true;
 
                                 var deviceTokens = context.FcmTokens
