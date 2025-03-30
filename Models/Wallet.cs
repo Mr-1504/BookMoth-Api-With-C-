@@ -18,6 +18,4 @@ public partial class Wallet
     public virtual Account Account { get; set; } = null!;
 
     public virtual ICollection<Iachistory> Iachistories { get; set; } = new List<Iachistory>();
-
-    public virtual ICollection<PurchaseInvoice> PurchaseInvoices { get; set; } = new List<PurchaseInvoice>();
 }
