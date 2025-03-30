@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using static BookMoth_Api_With_C_.Models.Enums;
 
 namespace BookMoth_Api_With_C_.Models;
 
@@ -9,9 +10,10 @@ public partial class Iachistory
 
     public DateTime? IachDate { get; set; }
 
-    public int WalletId { get; set; }
+    public int SenderWalletId { get; set; }
+    public int ReceiverWalletId { get; set; }
 
-    public int? TransactionType { get; set; }
+    public TransactionType? TransactionType { get; set; }
 
     public string? ProductCode { get; set; }
 
