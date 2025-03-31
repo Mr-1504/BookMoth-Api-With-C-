@@ -7,9 +7,5 @@ public partial class Category
 {
     public int CategoryId { get; set; }
 
-    public string? Category1 { get; set; }
-
-    public string? Tag { get; set; }
-
-    public virtual ICollection<Work> Works { get; set; } = new List<Work>();
+    public string Tag { get; set; } = null!;
 }
