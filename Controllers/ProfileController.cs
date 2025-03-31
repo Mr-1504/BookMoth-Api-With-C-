@@ -1,10 +1,8 @@
 ﻿using BookMoth_Api_With_C_.Models;
 using BookMoth_Api_With_C_.RequestModels;
 using BookMoth_Api_With_C_.ResponseModels;
-using BookMoth_Api_With_C_.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using System.Globalization;
 
 namespace BookMoth_Api_With_C_.Controllers
@@ -23,7 +21,7 @@ namespace BookMoth_Api_With_C_.Controllers
         }
 
         /// <summary>
-        /// 
+        /// Lấy thông tin cá nhân của người dùng
         /// </summary>
         /// <returns></returns>
         [HttpGet("me")]
@@ -33,11 +31,13 @@ namespace BookMoth_Api_With_C_.Controllers
 
             if (accountId == null)
             {
-                return Unauthorized(new { message = "Unauthorized", error_code = "INVALID_TOKEN" });
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
             }
 
-
-            var accId = Convert.ToInt32(accountId);
+            if (!int.TryParse(accountId, out int accId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
 
             var profile = await _context.Profiles
                 .Include(p => p.Follows)
@@ -115,12 +115,12 @@ namespace BookMoth_Api_With_C_.Controllers
             var accountIdClaim = User.FindFirst("accountId")?.Value;
             if (accountIdClaim == null)
             {
-                return Unauthorized(new { message = "User not authenticated" });
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
             }
 
             if (!int.TryParse(accountIdClaim, out int accountId))
             {
-                return Unauthorized(new { message = "Invalid account ID" });
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
             }
 
             var profile = await _context.Profiles
