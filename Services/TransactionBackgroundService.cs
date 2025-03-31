@@ -1,5 +1,6 @@
 ﻿using BookMoth_Api_With_C_.Models;
 using Newtonsoft.Json.Linq;
+using static BookMoth_Api_With_C_.Models.Enums;
 
 namespace BookMoth_Api_With_C_.Services
 {
@@ -29,71 +30,109 @@ namespace BookMoth_Api_With_C_.Services
                     var context = scope.ServiceProvider.GetRequiredService<BookMothContext>();
 
                     var pendingTransactions = context.Transactions
-                        .Where(t => t.Status == 0) 
+                        .Where(t => t.Status == 0)
                         .ToList();
 
                     delayTime = pendingTransactions.Any() ? 5000 : 20000;
 
-                    bool hasChanges = false;
+                    DateTime vietnamTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
 
                     foreach (var transaction in pendingTransactions)
                     {
-                        DateTime vietnamTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
                         try
                         {
                             var response = await zaloPayService.GetTransactionStatusAsync(transaction.TransactionId);
-                            var jsonResponse = JObject.Parse(response);
 
-                            if ((int)jsonResponse["returncode"] == 1)
+                            if (string.IsNullOrWhiteSpace(response))
+                            {
+                                _logger.LogError($"Phản hồi từ ZaloPay rỗng hoặc null cho giao dịch {transaction.TransactionId}");
+                                continue;
+                            }
+
+                            JObject jsonResponse;
+                            try
+                            {
+                                jsonResponse = JObject.Parse(response);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError($"Lỗi khi parse JSON từ ZaloPay cho giao dịch {transaction.TransactionId}: {ex.Message}");
+                                continue;
+                            }
+
+                            if (jsonResponse["returncode"] != null && (int)jsonResponse["returncode"] == 1)
                             {
                                 transaction.Status = 1;
                                 var wallet = context.Wallets.SingleOrDefault(w => w.WalletId == transaction.ReceiverWalletId);
+
                                 if (wallet != null)
                                 {
+                                    decimal oldBalance = wallet.Balance;
                                     wallet.Balance += transaction.Amount;
-                                }
 
-                                hasChanges = true;
-
-                                var deviceTokens = context.FcmTokens
-                                    .Where(t => t.AccountId == wallet.AccountId)
-                                    .Select(t => t.Token)
-                                    .ToList();
-
-                                if (deviceTokens.Any())
-                                {
-                                    long timestamp = long.Parse(jsonResponse["apptime"].ToString());
-                                    DateTime time = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime.AddHours(7);
-
-
-
-                                    var notificationTasks = deviceTokens.Select(async token =>
+                                    await context.SaveChangesAsync();
+                                    var history = new Iachistory
                                     {
-                                        try
-                                        {
-                                            await _fcmService.SendNotificationAsync(
-                                                token,
-                                                "Thanh toán thành công",
-                                                $"Bạn vừa thực hiện thành công một giao dịch\n" +
-                                                $"Thời gian: {time.ToString("yyyy-MM-dd HH:mm:ss")}\n" +
-                                                $"Giao dịch: +{transaction.Amount.ToString("N0")} VND\n" +
-                                                $"Số dư hiện tại: {wallet.Balance.ToString("N0")} VND\n" +
-                                                $"Nội dung: Nạp tiền: {transaction.Description}"
-                                            );
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            _logger.LogError($"Lỗi gửi thông báo đến {token}: {ex.Message}");
-                                        }
-                                    }).ToList();
+                                        IachDate = vietnamTime,
+                                        ReceiverWalletId = transaction.ReceiverWalletId,
+                                        TransactionType = TransactionType.Deposit,
+                                        BeginBalance = oldBalance,
+                                        EndBalance = wallet.Balance,
+                                        Description = transaction.Description,
+                                        PaymentMethodId = transaction.PaymentMethodId
+                                    };
 
-                                    await Task.WhenAll(notificationTasks);
+                                    await context.Iachistories.AddAsync(history);
+
+                                    await context.SaveChangesAsync();
+
+                                    var deviceTokens = context.FcmTokens
+                                        .Where(t => t.AccountId == wallet.AccountId)
+                                        .Select(t => t.Token)
+                                        .ToList();
+
+                                    if (deviceTokens.Any())
+                                    {
+                                        if (jsonResponse["apptime"] != null && long.TryParse(jsonResponse["apptime"].ToString(), out long timestamp))
+                                        {
+                                            DateTime time = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime.AddHours(7);
+
+                                            var notificationTasks = deviceTokens.Select(async token =>
+                                            {
+                                                try
+                                                {
+                                                    await _fcmService.SendNotificationAsync(
+                                                        token,
+                                                        "Thanh toán thành công",
+                                                        $"Bạn vừa thực hiện thành công một giao dịch\n" +
+                                                        $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
+                                                        $"Giao dịch: +{transaction.Amount:N0} VND\n" +
+                                                        $"Số dư hiện tại: {wallet.Balance:N0} VND\n" +
+                                                        $"Nội dung: Nạp tiền: {transaction.Description}"
+                                                    );
+                                                }
+                                                catch (Exception ex)
+                                                {
+                                                    _logger.LogError($"Lỗi gửi thông báo đến {token}: {ex.Message}");
+                                                }
+                                            }).ToList();
+
+                                            await Task.WhenAll(notificationTasks);
+                                        }
+                                        else
+                                        {
+                                            _logger.LogError($"Dữ liệu apptime không hợp lệ cho giao dịch {transaction.TransactionId}");
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    _logger.LogError($"Không tìm thấy ví có ID {transaction.ReceiverWalletId} cho giao dịch {transaction.TransactionId}");
                                 }
                             }
-                            else if (transaction.Status == 0 && (vietnamTime - transaction.Created_At).TotalMinutes > 15)
+                            else if (transaction.Status == 0 && (vietnamTime - transaction.CreatedAt).TotalMinutes > 15)
                             {
                                 transaction.Status = -1;
-                                hasChanges = true;
                             }
                         }
                         catch (Exception ex)
@@ -101,15 +140,11 @@ namespace BookMoth_Api_With_C_.Services
                             _logger.LogError($"Lỗi kiểm tra giao dịch {transaction.TransactionId}: {ex.Message}");
                         }
                     }
-
-                    if (hasChanges)
-                    {
-                        await context.SaveChangesAsync();
-                    }
                 }
-                await Task.Delay(5000, stoppingToken);
+                await Task.Delay(delayTime, stoppingToken);
             }
         }
+
 
     }
 }
