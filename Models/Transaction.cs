@@ -8,7 +8,7 @@ public partial class Transaction
 
     public Enums.TransactionType TransactionType { get; set; }
 
-    public int Status { get; set; }
+    public Enums.TransactionStatus Status { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -19,6 +19,7 @@ public partial class Transaction
     public int? SenderWalletId { get; set; }
 
     public int ReceiverWalletId { get; set; }
+    public int? WorkId { get; set; }
 
     public virtual PaymentMethod PaymentMethod { get; set; } = null!;
 }
