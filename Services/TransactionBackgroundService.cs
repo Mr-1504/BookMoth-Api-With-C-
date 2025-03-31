@@ -1,4 +1,7 @@
 ﻿using BookMoth_Api_With_C_.Models;
+using FirebaseAdmin.Messaging;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Client;
 using Newtonsoft.Json.Linq;
 using static BookMoth_Api_With_C_.Models.Enums;
 
@@ -30,7 +33,7 @@ namespace BookMoth_Api_With_C_.Services
                     var context = scope.ServiceProvider.GetRequiredService<BookMothContext>();
 
                     var pendingTransactions = context.Transactions
-                        .Where(t => t.Status == 0)
+                        .Where(t => t.Status == 0 && t.PaymentMethodId == Enums.PaymentMethod.ZaloPay)
                         .ToList();
 
                     delayTime = pendingTransactions.Any() ? 5000 : 20000;
@@ -62,77 +65,150 @@ namespace BookMoth_Api_With_C_.Services
 
                             if (jsonResponse["returncode"] != null && (int)jsonResponse["returncode"] == 1)
                             {
-                                transaction.Status = 1;
-                                var wallet = context.Wallets.SingleOrDefault(w => w.WalletId == transaction.ReceiverWalletId);
-
-                                if (wallet != null)
+                                if (transaction.TransactionId.Contains("PM"))
                                 {
-                                    decimal oldBalance = wallet.Balance;
-                                    wallet.Balance += transaction.Amount;
+                                    var senderWallet = await context.Wallets
+                                        .FromSqlRaw("SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE wallet_id = {0}", transaction.SenderWalletId)
+                                        .FirstOrDefaultAsync();
+
+                                    if (senderWallet == null)
+                                    {
+                                        continue;
+                                    }
+
+                                    var receiverWallet = await context.Wallets
+                                        .FromSqlRaw("SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE wallet_id = {0}", transaction.ReceiverWalletId)
+                                        .FirstOrDefaultAsync();
+
+                                    if (receiverWallet == null)
+                                    {
+                                        continue;
+                                    }
+
+                                    senderWallet.Balance -= transaction.Amount;
+                                    receiverWallet.Balance += transaction.Amount;
+                                    transaction.Status = TransactionStatus.Success;
 
                                     await context.SaveChangesAsync();
+
+                                    DateTime time = DateTime.UtcNow.AddHours(7);
+
                                     var history = new Iachistory
                                     {
-                                        IachDate = vietnamTime,
-                                        ReceiverWalletId = transaction.ReceiverWalletId,
-                                        TransactionType = TransactionType.Deposit,
-                                        BeginBalance = oldBalance,
-                                        EndBalance = wallet.Balance,
+                                        IachDate = time,
+                                        TransactionType = transaction.TransactionType,
+                                        InvoiceValue = transaction.Amount,
+                                        BeginBalance = senderWallet.Balance,
+                                        EndBalance = senderWallet.Balance - transaction.Amount,
+                                        SenderWalletId = senderWallet.WalletId,
+                                        ReceiverWalletId = receiverWallet.WalletId,
                                         Description = transaction.Description,
-                                        PaymentMethodId = transaction.PaymentMethodId
+                                        PaymentMethodId = transaction.PaymentMethodId,
+                                        WorkId = transaction.WorkId,
+                                        TransactionId = transaction.TransactionId
                                     };
-
                                     await context.Iachistories.AddAsync(history);
+
+
+                                    var receiverHistory = new Iachistory
+                                    {
+                                        IachDate = time,
+                                        TransactionType = transaction.TransactionType,
+                                        InvoiceValue = transaction.Amount,
+                                        BeginBalance = receiverWallet.Balance,
+                                        EndBalance = receiverWallet.Balance + transaction.Amount,
+                                        SenderWalletId = senderWallet.WalletId,
+                                        ReceiverWalletId = receiverWallet.WalletId,
+                                        Description = transaction.Description,
+                                        PaymentMethodId = transaction.PaymentMethodId,
+                                        WorkId = transaction.WorkId,
+                                        TransactionId = transaction.TransactionId
+                                    };
+                                    await context.Iachistories.AddAsync(receiverHistory);
 
                                     await context.SaveChangesAsync();
 
-                                    var deviceTokens = context.FcmTokens
-                                        .Where(t => t.AccountId == wallet.AccountId)
-                                        .Select(t => t.Token)
-                                        .ToList();
-
-                                    if (deviceTokens.Any())
+                                    var owner = new OwnershipRecord
                                     {
+                                        WorkId = (int)transaction.WorkId,
+                                        AccountId = senderWallet.AccountId
+                                    };
+                                    await context.OwnershipRecords.AddAsync(owner);
+                                    await context.SaveChangesAsync();
+
+                                    string message = $"Bạn vừa thực hiện thành công một giao dịch\n" +
+                                        $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
+                                        $"Giao dịch: -{transaction.Amount:N0} VND\n" +
+                                        $"Số dư hiện tại: {senderWallet.Balance:N0} VND\n" +
+                                        $"Nội dung: {transaction.Description}";
+
+                                    string title = "Thanh toán thành công";
+                                    sendNotificationAsync(context, senderWallet, title, message).Wait();
+
+                                    message = $"Bạn vừa nhận được một giao dịch\n" +
+                                        $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
+                                        $"Giao dịch: +{transaction.Amount:N0} VND\n" +
+                                        $"Số dư hiện tại: {receiverWallet.Balance:N0} VND\n" +
+                                        $"Nội dung: {transaction.Description}";
+                                    title = "Biến động số dư";
+                                    sendNotificationAsync(context, receiverWallet, title, message).Wait();
+                                }
+                                else
+                                {
+                                    transaction.Status = TransactionStatus.Success;
+                                    var wallet = context.Wallets
+                                        .FromSqlRaw("SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE wallet_id = {0}", transaction.ReceiverWalletId)
+                                        .FirstOrDefault();
+                                    if (wallet != null)
+                                    {
+
+                                        decimal oldBalance = wallet.Balance;
+                                        wallet.Balance += transaction.Amount;
+                                        await context.SaveChangesAsync();
+                                        var history = new Iachistory
+                                        {
+                                            IachDate = vietnamTime,
+                                            ReceiverWalletId = transaction.ReceiverWalletId,
+                                            TransactionType = TransactionType.Deposit,
+                                            InvoiceValue = transaction.Amount,
+                                            BeginBalance = oldBalance,
+                                            EndBalance = wallet.Balance,
+                                            Description = transaction.Description,
+                                            PaymentMethodId = transaction.PaymentMethodId,
+                                            WorkId = transaction.WorkId,
+                                            TransactionId = transaction.TransactionId
+                                        };
+
+                                        await context.Iachistories.AddAsync(history);
+                                        await context.SaveChangesAsync();
                                         if (jsonResponse["apptime"] != null && long.TryParse(jsonResponse["apptime"].ToString(), out long timestamp))
                                         {
                                             DateTime time = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime.AddHours(7);
 
-                                            var notificationTasks = deviceTokens.Select(async token =>
-                                            {
-                                                try
-                                                {
-                                                    await _fcmService.SendNotificationAsync(
-                                                        token,
-                                                        "Thanh toán thành công",
-                                                        $"Bạn vừa thực hiện thành công một giao dịch\n" +
-                                                        $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
-                                                        $"Giao dịch: +{transaction.Amount:N0} VND\n" +
-                                                        $"Số dư hiện tại: {wallet.Balance:N0} VND\n" +
-                                                        $"Nội dung: Nạp tiền: {transaction.Description}"
-                                                    );
-                                                }
-                                                catch (Exception ex)
-                                                {
-                                                    _logger.LogError($"Lỗi gửi thông báo đến {token}: {ex.Message}");
-                                                }
-                                            }).ToList();
+                                            string message = $"Bạn vừa thực hiện thành công một giao dịch\n" +
+                                                $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
+                                                $"Giao dịch: +{transaction.Amount:N0} VND\n" +
+                                                $"Số dư hiện tại: {wallet.Balance:N0} VND\n" +
+                                                $"Nội dung: Nạp tiền: {transaction.Description}";
+                                            string title = "Nạp tiền thành công";
 
-                                            await Task.WhenAll(notificationTasks);
+                                            sendNotificationAsync(context, wallet, title, message).Wait();
                                         }
                                         else
                                         {
                                             _logger.LogError($"Dữ liệu apptime không hợp lệ cho giao dịch {transaction.TransactionId}");
                                         }
                                     }
+                                    else
+                                    {
+                                        _logger.LogError($"Không tìm thấy ví có ID {transaction.ReceiverWalletId} cho giao dịch {transaction.TransactionId}");
+                                    }
                                 }
-                                else
-                                {
-                                    _logger.LogError($"Không tìm thấy ví có ID {transaction.ReceiverWalletId} cho giao dịch {transaction.TransactionId}");
-                                }
+
                             }
                             else if (transaction.Status == 0 && (vietnamTime - transaction.CreatedAt).TotalMinutes > 15)
                             {
-                                transaction.Status = -1;
+                                transaction.Status = TransactionStatus.Failed;
                             }
                         }
                         catch (Exception ex)
@@ -145,6 +221,32 @@ namespace BookMoth_Api_With_C_.Services
             }
         }
 
+        public async Task sendNotificationAsync(BookMothContext context, Wallet wallet, string title, string message)
+        {
+            var deviceTokens = context.FcmTokens
+                .Where(t => t.AccountId == wallet.AccountId)
+                .Select(t => t.Token)
+                .ToList();
+
+            if (deviceTokens.Any())
+            {
+
+                var notificationTasks = deviceTokens.Select(async token =>
+                {
+                    try
+                    {
+                        await _fcmService.SendNotificationAsync(token, title, message);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Lỗi gửi thông báo đến {token}: {ex.Message}");
+                    }
+                }).ToList();
+
+                await Task.WhenAll(notificationTasks);
+
+            }
+        }
 
     }
 }
