@@ -39,15 +39,17 @@ namespace BookMoth_Api_With_C_.Controllers
 
             var accId = Convert.ToInt32(accountId);
 
-            var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.AccountId == accId);
+            var profile = await _context.Profiles
+                .Include(p => p.Follows)
+                .FirstOrDefaultAsync(p => p.AccountId == accId);
 
             if (profile == null)
             {
                 return NotFound(new { message = "Profile not found" });
             }
 
-            int follower = profile.Followers.Count();
-            int following = profile.Followings.Count();
+            int follower = profile.Follows.Count(f => f.FollowingId == profile.ProfileId);
+            int following = profile.Follows.Count(f => f.FollowerId == profile.ProfileId);
 
             var profileResponse = new ProfileResponse
             {
@@ -72,8 +74,7 @@ namespace BookMoth_Api_With_C_.Controllers
         public async Task<IActionResult> getById(int id)
         {
             var profile = await _context.Profiles
-                .Include(p => p.Followings)
-                .Include(p => p.Followers)
+                .Include(p => p.Follows)
                 .FirstOrDefaultAsync(p => p.ProfileId == id);
 
             if (profile == null)
@@ -81,8 +82,8 @@ namespace BookMoth_Api_With_C_.Controllers
                 return NotFound(new { message = $"Profile {id} not found" });
             }
 
-            int follower = profile.Followers.Count();
-            int following = profile.Followings.Count();
+            int follower = profile.Follows.Count(f => f.FollowingId == profile.ProfileId);
+            int following = profile.Follows.Count(f => f.FollowerId == profile.ProfileId);
 
             var profileResponse = new ProfileResponse
             {
@@ -123,8 +124,7 @@ namespace BookMoth_Api_With_C_.Controllers
             }
 
             var profile = await _context.Profiles
-                .Include(p => p.Followings)
-                .Include(p => p.Followers)
+                .Include(p => p.Follows)
                 .FirstOrDefaultAsync(p => p.ProfileId == request.Id);
 
             if (profile == null)
@@ -133,8 +133,7 @@ namespace BookMoth_Api_With_C_.Controllers
             }
 
             var myProfile = await _context.Profiles
-                .Include(m => m.Followings)
-                .Include(m => m.Followers)
+                .Include(m => m.Follows)
                 .FirstOrDefaultAsync(m => m.AccountId == accountId);
 
             if (myProfile == null)
@@ -142,7 +141,7 @@ namespace BookMoth_Api_With_C_.Controllers
                 return NotFound(new { message = "Your profile not found" });
             }
 
-            if (profile.Followers.Contains(myProfile))
+            if (profile.Follows.Any(f => f.FollowerId == myProfile.ProfileId && f.FollowingId == profile.ProfileId))
             {
                 return Conflict(new { message = "Already following this profile" });
             }
@@ -150,9 +149,13 @@ namespace BookMoth_Api_With_C_.Controllers
             await using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                profile.Followers.Add(myProfile);
-                myProfile.Followings.Add(profile);
+                var follow = new Follow
+                {
+                    FollowerId = myProfile.ProfileId,
+                    FollowingId = profile.ProfileId
+                };
 
+                await _context.Follows.AddAsync(follow);
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
