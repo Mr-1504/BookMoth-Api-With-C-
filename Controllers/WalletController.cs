@@ -19,6 +19,7 @@ namespace BookMoth_Api_With_C_.Controllers
     {
         private readonly string _appId;
         private readonly string _key1;
+        private readonly string _hmacKey;
         private readonly string _createOrderUrl;
         private BookMothContext _context;
         private ZaloPayHelper _zaloPayHelper;
@@ -47,19 +48,23 @@ namespace BookMoth_Api_With_C_.Controllers
             _appId = _config["ZaloPay:Appid"];
             _key1 = _config["ZaloPay:Key1"];
             _createOrderUrl = _config["ZaloPay:ZaloPayApiCreateOrder"];
-
+            _hmacKey = _config["payment:MacKey"];
         }
 
         [HttpGet("balance")]
         public IActionResult Get()
         {
             var accId = User.FindFirst("accountId")?.Value;
+
             if (accId == null)
             {
-                return Unauthorized(new { message = "Unauthorized", error_code = "INVALID_TOKEN" });
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
             }
 
-            var accountId = int.Parse(accId);
+            if (!int.TryParse(accId, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
 
             var wallet = _context.Wallets.SingleOrDefault(w => w.AccountId == accountId);
             if (wallet == null)
@@ -77,12 +82,16 @@ namespace BookMoth_Api_With_C_.Controllers
                 return BadRequest();
 
             var accId = User.FindFirst("accountId")?.Value;
+
             if (accId == null)
             {
-                return Unauthorized(new { message = "Unauthozired", error_code = "INVALID_TOKEN" });
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
             }
 
-            var accountId = int.Parse(accId);
+            if (!int.TryParse(accId, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
 
             var wallet = await _context.Wallets.FirstOrDefaultAsync(wallet => wallet.AccountId == accountId);
 
@@ -157,12 +166,16 @@ namespace BookMoth_Api_With_C_.Controllers
             }
 
             var accId = User.FindFirst("accountId")?.Value;
+
             if (accId == null)
             {
-                return Unauthorized(new { message = "Unauthozired", error_code = "INVALID_TOKEN" });
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
             }
 
-            var accountId = int.Parse(accId);
+            if (!int.TryParse(accId, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
 
             var wallet = await _context.Wallets.FirstOrDefaultAsync(wallet => wallet.AccountId == accountId);
 
@@ -183,12 +196,16 @@ namespace BookMoth_Api_With_C_.Controllers
         public async Task<IActionResult> isExist()
         {
             var accId = User.FindFirst("accountId")?.Value;
+
             if (accId == null)
             {
-                return Unauthorized(new { message = "Unauthozired", error_code = "INVALID_TOKEN" });
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
             }
 
-            var accountId = int.Parse(accId);
+            if (!int.TryParse(accId, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
 
             var wallet = await _context.Wallets.FirstOrDefaultAsync(wallet => wallet.AccountId == accountId);
 
@@ -209,15 +226,17 @@ namespace BookMoth_Api_With_C_.Controllers
             }
 
             var accId = User.FindFirst("accountId")?.Value;
+
             if (accId == null)
             {
-                return Unauthorized(new { message = "Unauthorized", error_code = "INVALID_TOKEN" });
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
             }
 
-            if (!int.TryParse(accId, out var accountId))
+            if (!int.TryParse(accId, out int accountId))
             {
-                return BadRequest();
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
             }
+
             var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.AccountId == accountId);
             if (profile == null)
             {
@@ -230,7 +249,7 @@ namespace BookMoth_Api_With_C_.Controllers
             var today = DateTime.Today;
             var tomorrow = today.AddDays(1);
             var countTrans = _context.Transactions.
-                Where(t => t.CreatedAt >= today && t.CreatedAt < tomorrow)
+                Where(t => t.CreatedAt >= today && t.CreatedAt < tomorrow && t.TransactionId.Contains("DP"))
                 .Count() + 1;
 
 
@@ -239,9 +258,8 @@ namespace BookMoth_Api_With_C_.Controllers
             DateTime vietnamTime = TimeZoneInfo.ConvertTimeFromUtc(
                 DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time")
             );
-            Console.WriteLine(vietnamTime);
 
-            var transid = vietnamTime.ToString("yyMMdd_HHmmss") + "_BK" + countTrans.ToString().PadLeft(5, '0');
+            var transid = vietnamTime.ToString("yyMMdd_HHmmss") + "_DP" + countTrans.ToString().PadLeft(5, '0');
             var param = new Dictionary<string, string>
             {
                 { "appid", _appId },
@@ -280,7 +298,7 @@ namespace BookMoth_Api_With_C_.Controllers
                             ReceiverWalletId = wallet.WalletId,
                             Amount = Decimal.Parse(request.Amount.ToString()),
                             TransactionType = request.TransactionType,
-                            Status = 0,
+                            Status = TransactionStatus.Pending,
                             CreatedAt = vietnamTime,
                             Description = desc,
                             PaymentMethodId = PaymentMethod.ZaloPay
@@ -338,7 +356,7 @@ namespace BookMoth_Api_With_C_.Controllers
                             var transaction = _context.Transactions.SingleOrDefault(o => o.TransactionId.Equals(transId));
                             if (transaction != null)
                             {
-                                transaction.Status = 1;
+                                transaction.Status = TransactionStatus.Success;
                                 _context.SaveChanges();
 
                                 var wallet = _context.Wallets.SingleOrDefault(w => w.WalletId.Equals(transaction.ReceiverWalletId));
@@ -377,6 +395,281 @@ namespace BookMoth_Api_With_C_.Controllers
             }
         }
 
+        [HttpPost("order")]
+        public async Task<IActionResult> orderProduct([FromBody] OrderRequest request)
+        {
+            if (request == null)
+            {
+                return BadRequest(new { message = "invalid data" });
+            }
 
+            var data = request.WorkId + "|" + request.OrderTime;
+            var hmac = SecurityService.ComputeHashMac(_hmacKey, data);
+
+            if (hmac != request.Mac)
+            {
+                return Unauthorized(new { message = "Invalid MAC", error_code = "INVALID_MAC" });
+            }
+
+            var accId = User.FindFirst("accountId")?.Value;
+
+            if (accId == null)
+            {
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
+            }
+
+            if (!int.TryParse(accId, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
+
+            if (await _context.OwnershipRecords.AnyAsync(o => o.WorkId == request.WorkId && o.AccountId == accountId))
+            {
+                return Conflict(new { message = "You already own this work" });
+            }
+
+            var work = await _context.Works
+                .Include(w => w.Profile)
+                .ThenInclude(p => p.Account)
+                .ThenInclude(a => a.Wallets)
+                .FirstOrDefaultAsync(w => w.WorkId == request.WorkId);
+
+            var myWallet = await _context.Wallets.FirstOrDefaultAsync(w => w.AccountId == accountId);
+
+            if (myWallet == null)
+            {
+                return NotFound(new { message = "Wallet not found", error_code = "INVALID_WALLET" });
+            }
+
+            if (work == null)
+            {
+                return NotFound(new { message = "Work not found" });
+            }
+            using (var trans = await _context.Database.BeginTransactionAsync())
+            {
+                try
+                {
+                    var today = DateTime.Today;
+                    var tomorrow = today.AddDays(1);
+                    var countTrans = _context.Transactions.
+                        Where(t => t.CreatedAt >= today && t.CreatedAt < tomorrow && t.TransactionId.Contains("PM"))
+                        .Count() + 1;
+
+                    DateTime vietnamTime = TimeZoneInfo.ConvertTimeFromUtc(
+                        DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time")
+                    );
+
+                    var transid = vietnamTime.ToString("yyMMdd_HHmmss") + "_PM" + countTrans.ToString().PadLeft(5, '0');
+
+                    var transaction = new Transaction
+                    {
+                        TransactionId = transid,
+                        Amount = work.Price,
+                        ReceiverWalletId = work.Profile.Account.Wallets.First().WalletId,
+                        TransactionType = TransactionType.Payment,
+                        Status = TransactionStatus.Pending,
+                        CreatedAt = vietnamTime,
+                        Description = $"Mua tác phẩm {work.Title}",
+                        PaymentMethodId = PaymentMethod.Wallet,
+                        SenderWalletId = myWallet.WalletId,
+                        WorkId = work.WorkId
+                    };
+
+                    await _context.Transactions.AddAsync(transaction);
+                    await _context.SaveChangesAsync();
+                    await trans.CommitAsync();
+                    return Ok(new { transId = transid });
+                }
+                catch (Exception ex)
+                {
+                    await trans.RollbackAsync();
+                    return UnprocessableEntity(new { message = ex.Message });
+                }
+            }
+        }
+
+        [HttpPatch("/payment-method")]
+        public async Task<IActionResult> updatePaymentMethod([FromBody] UpdatePaymentMethodRequest request)
+        {
+            if (request == null)
+            {
+                return BadRequest(new { message = "Invalid data" });
+            }
+
+            var accId = User.FindFirst("accountId")?.Value;
+
+            if (accId == null)
+            {
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
+            }
+
+            if (!int.TryParse(accId, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
+
+            var myWallet = await _context.Wallets.FirstOrDefaultAsync(w => w.AccountId == accountId);
+
+            if (myWallet == null)
+            {
+                return NotFound(new { message = "Wallet not found", error_code = "INVALID_WALLET" });
+            }
+
+            var transaction = await _context.Transactions.FirstOrDefaultAsync
+                (t =>
+                    t.TransactionId == request.TransactionId &&
+                    t.SenderWalletId == myWallet.WalletId
+                );
+
+            if (transaction == null)
+            {
+                return NotFound(new { message = "Transaction not found", error_code = "INVALID_TRANSACTION" });
+            }
+
+            if (transaction.Status != TransactionStatus.Pending)
+            {
+                return Conflict(new { message = "Transaction is not pending" });
+            }
+
+            using (var trans = await _context.Database.BeginTransactionAsync())
+            {
+                try
+                {
+                    transaction.PaymentMethodId = request.PaymentMethodId;
+
+                    await _context.SaveChangesAsync();
+                    await trans.CommitAsync();
+                    return Ok(new {success = true, message = "Updated payment method successfully" });
+                }
+                catch (Exception ex)
+                {
+                    await trans.RollbackAsync();
+                    return UnprocessableEntity(new { message = ex.Message });
+                }
+            }
+        }
+
+        [HttpPost("payment")]
+        public async Task<IActionResult> paymentWithWallet([FromBody] PaymentRequest request)
+        {
+            if (request == null)
+            {
+                return BadRequest(new { message = "Invalid data" });
+            }
+
+            var accId = User.FindFirst("accountId")?.Value;
+
+            if (accId == null)
+            {
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
+            }
+
+            if (!int.TryParse(accId, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
+            using (var trans = await _context.Database.BeginTransactionAsync()) {
+                try
+                {
+                    var myWallet = await _context.Wallets
+                    .FromSqlRaw("SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE Account_Id = {0}", accountId)
+                    .FirstOrDefaultAsync();
+
+                    if (myWallet == null)
+                    {
+                        return NotFound(new { message = "Wallet not found", error_code = "INVALID_WALLET" });
+                    }
+
+                    var transaction = await _context.Transactions.FirstOrDefaultAsync
+                        (t =>
+                            t.TransactionId == request.TransactionId &&
+                            t.SenderWalletId == myWallet.WalletId
+                        );
+
+                    if (transaction == null)
+                    {
+                        return NotFound(new { message = "Transaction not found", error_code = "INVALID_TRANSACTION" });
+                    }
+
+                    if (transaction.Status != TransactionStatus.Pending)
+                    {
+                        return Conflict(new { message = "Transaction is not pending" });
+                    }
+
+                    if (myWallet.Balance < transaction.Amount)
+                    {
+                        return UnprocessableEntity(new { message = "Not enough balance", error_code = "INSUFFICIENT_FUNDS" });
+                    }
+
+                    var receiverWallet = await _context.Wallets
+                        .FromSqlRaw("SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE Wallet_id = {0}", transaction.ReceiverWalletId)
+                        .FirstOrDefaultAsync();
+
+                    if (receiverWallet == null)
+                    {
+                        return NotFound(new { message = "Receiver wallet not found", error_code = "INVALID_RECEIVER_WALLET" });
+                    }
+
+                    myWallet.Balance -= transaction.Amount;
+                    receiverWallet.Balance += transaction.Amount;
+                    transaction.Status = TransactionStatus.Success;
+
+                    await _context.SaveChangesAsync();
+
+                    DateTime time = DateTime.UtcNow.AddHours(7);
+
+                    var history = new Iachistory
+                    {
+                        IachDate = time,
+                        TransactionType = transaction.TransactionType,
+                        InvoiceValue = transaction.Amount,
+                        BeginBalance = myWallet.Balance,
+                        EndBalance = myWallet.Balance - transaction.Amount,
+                        SenderWalletId = myWallet.WalletId,
+                        ReceiverWalletId = receiverWallet.WalletId,
+                        Description = transaction.Description,
+                        PaymentMethodId = transaction.PaymentMethodId,
+                        WorkId = transaction.WorkId,
+                        TransactionId = transaction.TransactionId
+                    };
+                    await _context.Iachistories.AddAsync(history);
+
+                    var receiverHistory = new Iachistory
+                    {
+                        IachDate = time,
+                        TransactionType = transaction.TransactionType,
+                        InvoiceValue = transaction.Amount,
+                        BeginBalance = receiverWallet.Balance,
+                        EndBalance = receiverWallet.Balance + transaction.Amount,
+                        SenderWalletId = myWallet.WalletId,
+                        ReceiverWalletId = receiverWallet.WalletId,
+                        Description = transaction.Description,
+                        PaymentMethodId = transaction.PaymentMethodId,
+                        WorkId = transaction.WorkId,
+                        TransactionId = transaction.TransactionId
+                    };
+                    await _context.Iachistories.AddAsync(receiverHistory);
+
+                    await _context.SaveChangesAsync();
+
+                    var owner = new OwnershipRecord
+                    {
+                        WorkId = (int)transaction.WorkId,
+                        AccountId = accountId
+                    };
+                    await _context.OwnershipRecords.AddAsync(owner);
+                    await _context.SaveChangesAsync();
+
+                    await trans.CommitAsync();
+                    return Ok(new { success = true, message = "Payment successful" });
+                }
+                catch (Exception ex)
+                {
+                    await trans.RollbackAsync();
+                    return UnprocessableEntity(new { message = ex.Message });
+                }
+            }
+
+        } 
     }
 }
