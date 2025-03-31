@@ -11,6 +11,7 @@ public partial class Iachistory
     public TransactionType TransactionType { get; set; }
 
     public string? ProductCode { get; set; }
+    public string? TransactionId { get; set; }
 
     public decimal? InvoiceValue { get; set; }
 
@@ -21,6 +22,7 @@ public partial class Iachistory
     public int? SenderWalletId { get; set; }
 
     public int ReceiverWalletId { get; set; }
+    public int? WorkId { get; set; }
 
     public string Description { get; set; } = null!;
 
