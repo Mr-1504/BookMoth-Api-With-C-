@@ -4,10 +4,12 @@ using BookMoth_Api_With_C_.Services;
 using BookMoth_Api_With_C_.ZaloPay;
 using BookMoth_Api_With_C_.ZaloPay.Crypto;
 using BookMoth_Api_With_C_.ZaloPay.Models;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
+using System;
 using static BookMoth_Api_With_C_.Models.Enums;
 using PaymentMethod = BookMoth_Api_With_C_.Models.Enums.PaymentMethod;
 
@@ -218,7 +220,7 @@ namespace BookMoth_Api_With_C_.Controllers
         }
 
         [HttpPost("deposit")]
-        public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequest request)
+        public async Task<IActionResult> deposit([FromBody] CreateOrderRequest request)
         {
             if (request.Amount == null)
             {
@@ -319,6 +321,81 @@ namespace BookMoth_Api_With_C_.Controllers
                         return UnprocessableEntity(new { success = false, message = e.Message });
                     }
                 }
+            }
+            return UnprocessableEntity(new { success = false, message = order["returnmessage"] });
+        }
+
+        [HttpPost("zalopay-order")]
+        public async Task<IActionResult> createZaloPayOrder([FromBody] ZaloPayOrderRequest request)
+        {
+            if (request == null)
+            {
+                return BadRequest(new { message = "Amount is required" });
+            }
+
+            var accId = User.FindFirst("accountId")?.Value;
+
+            if (accId == null)
+            {
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
+            }
+
+            if (!int.TryParse(accId, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
+            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.AccountId == accountId);
+            if (wallet == null)
+            {
+                return NotFound(new { message = "Wallet not found", error_code = "INVALID_WALLET" });
+            }
+            var transaction = await _context.Transactions.FirstOrDefaultAsync(t =>
+                        t.TransactionId == request.TransactionId && t.SenderWalletId == wallet.WalletId);
+
+            if (transaction == null)
+            {
+                return NotFound(new { message = "Transaction not found", error_code = "INVALID_TRANSACTION" });
+            }
+
+            if (transaction.Status != TransactionStatus.Pending)
+            {
+                return Conflict(new { message = "Transaction is not pending" });
+            }
+            var items = "[]";
+
+            long createdAtMs = new DateTimeOffset(transaction.CreatedAt).ToUnixTimeMilliseconds();
+            long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            long apptime = (nowMs - createdAtMs > 15 * 60 * 1000) ? nowMs : createdAtMs;
+
+            long amount = (long)transaction.Amount; // 120000
+
+            var param = new Dictionary<string, string>
+            {
+                { "appid", _appId },
+                { "appuser", accId },
+                { "apptime", apptime.ToString() },
+                { "amount", amount.ToString() },
+                { "apptransid", transaction.TransactionId},
+                { "embeddata", JsonConvert.SerializeObject(new { redirecturl = NgrokHelper.CreateEmbeddataWithPublicUrl()}) },
+                { "item", JsonConvert.SerializeObject(items) },
+                { "description", transaction.Description },
+                { "bankcode", "zalopayapp" }
+            };
+
+            var data = "553" + "|" + param["apptransid"] + "|" + param["appuser"] + "|" + param["amount"] + "|"
+                + param["apptime"] + "|" + param["embeddata"] + "|" + param["item"];
+            param.Add("mac", HmacHelper.Compute(ZaloPayHMAC.HMACSHA256, _key1, data));
+
+            var order = await HttpHelper.PostFormAsync(_createOrderUrl, param);
+
+            var returncode = (long)order["returncode"];
+            if (returncode == 1)
+            {
+                return Ok(new
+                {
+                    zaloToken = order["zptranstoken"]
+                });
             }
             return UnprocessableEntity(new { success = false, message = order["returnmessage"] });
         }
@@ -478,7 +555,7 @@ namespace BookMoth_Api_With_C_.Controllers
                     await _context.Transactions.AddAsync(transaction);
                     await _context.SaveChangesAsync();
                     await trans.CommitAsync();
-                    return Ok(new { transId = transid });
+                    return Ok(new { transId = transid, desc = transaction.Description, amount = transaction.Amount });
                 }
                 catch (Exception ex)
                 {
@@ -488,7 +565,7 @@ namespace BookMoth_Api_With_C_.Controllers
             }
         }
 
-        [HttpPatch("/payment-method")]
+        [HttpPatch("payment-method")]
         public async Task<IActionResult> updatePaymentMethod([FromBody] UpdatePaymentMethodRequest request)
         {
             if (request == null)
@@ -539,7 +616,7 @@ namespace BookMoth_Api_With_C_.Controllers
 
                     await _context.SaveChangesAsync();
                     await trans.CommitAsync();
-                    return Ok(new {success = true, message = "Updated payment method successfully" });
+                    return Ok(new { success = true, message = "Updated payment method successfully" });
                 }
                 catch (Exception ex)
                 {
@@ -568,7 +645,8 @@ namespace BookMoth_Api_With_C_.Controllers
             {
                 return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
             }
-            using (var trans = await _context.Database.BeginTransactionAsync()) {
+            using (var trans = await _context.Database.BeginTransactionAsync())
+            {
                 try
                 {
                     var myWallet = await _context.Wallets
@@ -611,9 +689,12 @@ namespace BookMoth_Api_With_C_.Controllers
                     }
 
                     myWallet.Balance -= transaction.Amount;
-                    receiverWallet.Balance += transaction.Amount;
-                    transaction.Status = TransactionStatus.Success;
+                    await _context.SaveChangesAsync();
 
+                    receiverWallet.Balance += transaction.Amount;
+                    await _context.SaveChangesAsync();
+
+                    transaction.Status = TransactionStatus.Success;
                     await _context.SaveChangesAsync();
 
                     DateTime time = DateTime.UtcNow.AddHours(7);
@@ -633,6 +714,7 @@ namespace BookMoth_Api_With_C_.Controllers
                         TransactionId = transaction.TransactionId
                     };
                     await _context.Iachistories.AddAsync(history);
+                    await _context.SaveChangesAsync();
 
                     var receiverHistory = new Iachistory
                     {
@@ -649,7 +731,6 @@ namespace BookMoth_Api_With_C_.Controllers
                         TransactionId = transaction.TransactionId
                     };
                     await _context.Iachistories.AddAsync(receiverHistory);
-
                     await _context.SaveChangesAsync();
 
                     var owner = new OwnershipRecord
@@ -670,6 +751,6 @@ namespace BookMoth_Api_With_C_.Controllers
                 }
             }
 
-        } 
+        }
     }
 }
