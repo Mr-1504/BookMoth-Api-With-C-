@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 using static BookMoth_Api_With_C_.Models.Enums;
+using PaymentMethod = BookMoth_Api_With_C_.Models.Enums.PaymentMethod;
 
 namespace BookMoth_Api_With_C_.Controllers
 {
@@ -99,7 +100,7 @@ namespace BookMoth_Api_With_C_.Controllers
                     {
                         AccountId = accountId,
                         Balance = 0,
-                        HashedPin = SecurityService.HashPasswordWithSalt(request.Pin, salt),
+                        Hashedpin = SecurityService.HashPasswordWithSalt(request.Pin, salt),
                         Salt = salt,
                         Status = 1
                     };
@@ -170,7 +171,7 @@ namespace BookMoth_Api_With_C_.Controllers
                 return NotFound(new { message = "Wallet does not exist" });
             }
 
-            if (wallet.HashedPin.Equals(SecurityService.HashPasswordWithSalt(confirmPinRequest.Pin, wallet.Salt)))
+            if (wallet.Hashedpin.Equals(SecurityService.HashPasswordWithSalt(confirmPinRequest.Pin, wallet.Salt)))
             {
                 return Ok();
             }
@@ -229,7 +230,7 @@ namespace BookMoth_Api_With_C_.Controllers
             var today = DateTime.Today;
             var tomorrow = today.AddDays(1);
             var countTrans = _context.Transactions.
-                Where(t => t.Created_At >= today && t.Created_At < tomorrow)
+                Where(t => t.CreatedAt >= today && t.CreatedAt < tomorrow)
                 .Count() + 1;
 
 
@@ -273,16 +274,16 @@ namespace BookMoth_Api_With_C_.Controllers
                             return NotFound(new { success = false, message = "Wallet not found" });
                         }
 
-                        var transaction = new Transactions
+                        var transaction = new Transaction
                         {
                             TransactionId = transid,
                             ReceiverWalletId = wallet.WalletId,
                             Amount = Decimal.Parse(request.Amount.ToString()),
                             TransactionType = request.TransactionType,
                             Status = 0,
-                            Created_At = vietnamTime,
+                            CreatedAt = vietnamTime,
                             Description = desc,
-                            Payment_Method_Id = PaymentMethod.ZaloPay
+                            PaymentMethodId = PaymentMethod.ZaloPay
                         };
                         _context.Transactions.Add(transaction);
                         _context.SaveChanges();
@@ -343,8 +344,6 @@ namespace BookMoth_Api_With_C_.Controllers
                                 var wallet = _context.Wallets.SingleOrDefault(w => w.WalletId.Equals(transaction.ReceiverWalletId));
                                 if (wallet != null)
                                 {
-                                    wallet.Balance += transaction.Amount;
-                                    _context.SaveChanges();
                                     wallet.Balance += transaction.Amount;
                                     _context.SaveChanges();
                                     trans.Commit();
