@@ -47,10 +47,6 @@ public partial class BookMothContext : DbContext
 
     public virtual DbSet<Worktag> Worktags { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseSqlServer("Data Source=_1504_\\SQLEXPRESS;Initial Catalog=BookMoth;Integrated Security=True;Trust Server Certificate=True");
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Account>(entity =>
@@ -190,25 +186,29 @@ public partial class BookMothContext : DbContext
         modelBuilder.Entity<OwnershipRecord>(entity =>
         {
             entity
-                .HasNoKey()
-                .ToTable("OwnershipRecord");
+                .HasKey(e => new { e.AccountId, e.WorkId });
+
+            entity.ToTable("OwnershipRecord");
 
             entity.Property(e => e.AccountId).HasColumnName("account_id");
+            entity.Property(e => e.WorkId).HasColumnName("work_id");
             entity.Property(e => e.ExpiryDate)
                 .HasColumnType("datetime")
                 .HasColumnName("expiry_date");
-            entity.Property(e => e.WorkId).HasColumnName("work_id");
 
-            entity.HasOne(d => d.Account).WithMany()
+            entity.HasOne(d => d.Account)
+                .WithMany()
                 .HasForeignKey(d => d.AccountId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_OwnershipRecord_Accounts");
 
-            entity.HasOne(d => d.Work).WithMany()
+            entity.HasOne(d => d.Work)
+                .WithMany()
                 .HasForeignKey(d => d.WorkId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_OwnershipRecord_Works");
         });
+
 
         modelBuilder.Entity<PaymentMethod>(entity =>
         {
