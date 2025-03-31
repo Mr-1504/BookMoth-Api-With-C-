@@ -9,21 +9,19 @@ public partial class Work
 
     public int ProfileId { get; set; }
 
-    public int ChapterId { get; set; }
+    public string Title { get; set; } = null!;
 
-    public int CategoryId { get; set; }
+    public DateTime PostDate { get; set; }
 
-    public DateTime? PostDate { get; set; }
+    public decimal Price { get; set; }
 
-    public decimal? Price { get; set; }
+    public long ViewCount { get; set; }
 
-    public int? ViewCount { get; set; }
+    public string? Description { get; set; }
 
-    public string? AvatarUrl { get; set; }
+    public string? CoverUrl { get; set; }
 
-    public virtual Category Category { get; set; } = null!;
-
-    public virtual Chapter Chapter { get; set; } = null!;
+    public virtual ICollection<Chapter> Chapters { get; set; } = new List<Chapter>();
 
     public virtual Profile Profile { get; set; } = null!;
 }
