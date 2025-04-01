@@ -36,5 +36,22 @@ namespace BookMoth_Api_With_C_.Services
             string response = await FirebaseMessaging.DefaultInstance.SendAsync(message);
             Console.WriteLine("Message ID: " + response);
         }
+
+        public async Task sendNotificationAsync(List<string> deviceTokens, string title, string body)
+        {
+            var notificationTasks = deviceTokens.Select(async token =>
+            {
+                try
+                {
+                    await SendNotificationAsync(token, title, body);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Lỗi gửi {ex}");
+                }
+            }).ToList();
+
+            await Task.WhenAll(notificationTasks);
+        }
     }
 }

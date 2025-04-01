@@ -49,7 +49,7 @@ namespace BookMoth_Api_With_C_.Controllers
             }
             else
             {
-                _context.FcmTokens.Add(new FcmTokens
+                _context.FcmTokens.Add(new FcmToken
                 {
                     AccountId = accountId,
                     DeviceId = model.DeviceId,
