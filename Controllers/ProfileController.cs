@@ -1,8 +1,12 @@
 ﻿using BookMoth_Api_With_C_.Models;
 using BookMoth_Api_With_C_.RequestModels;
 using BookMoth_Api_With_C_.ResponseModels;
+using BookMoth_Api_With_C_.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
+using Newtonsoft.Json;
 using System.Globalization;
 
 namespace BookMoth_Api_With_C_.Controllers
@@ -13,10 +17,16 @@ namespace BookMoth_Api_With_C_.Controllers
     {
         private BookMothContext _context;
         private string url = "http://127.0.0.1:7100/images/";
+        private IProfileService _profileService;
+        private IDistributedCache _cache;
 
         public ProfileController(
+            IDistributedCache cache,
+            IProfileService profileService,
             BookMothContext context)
         {
+            _cache = cache;
+            _profileService = profileService;
             _context = context;
         }
 
@@ -296,5 +306,58 @@ namespace BookMoth_Api_With_C_.Controllers
                 }
             }
         }
+
+        /// <summary>
+        /// Tìm kiếm người dùng theo mutual follow
+        /// </summary>
+        [HttpGet("search")]
+        public async Task<IActionResult> SearchUsers([FromQuery] string search)
+        {
+            if (string.IsNullOrWhiteSpace(search))
+            {
+                return BadRequest(new { message = "Invalid search string" });
+            }
+
+            var accountIdClaim = User.FindFirst("accountId")?.Value;
+            if (accountIdClaim == null)
+            {
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
+            }
+
+            if (!int.TryParse(accountIdClaim, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
+
+            var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.AccountId == accountId);
+            if (profile == null) {
+                return NotFound(new { message = "Profile not found", error_code = "INVALID_PROFILE" });
+            }
+
+            string cacheKey = $"search:{search}profileid:{profile.ProfileId}";
+            string cachedResult = await _cache.GetStringAsync(cacheKey);
+
+            if (!string.IsNullOrEmpty(cachedResult))
+            {
+                var _profiles = JsonConvert.DeserializeObject<List<ProfileDTO>>(cachedResult);
+                Console.WriteLine("Get from cache");
+                return Ok(_profiles);
+            }
+            Console.WriteLine("Getaaaaaaaaaaaaaaaaaaaaaaaa");
+            var profiles = await _profileService.SearchUsersByFollowAsync(profile.ProfileId, search);
+
+            if (profiles == null || profiles.Count == 0)
+            {
+                return NotFound(new { message = "Không tìm thấy người dùng nào." });
+            }
+
+            await _cache.SetStringAsync(cacheKey, JsonConvert.SerializeObject(profiles), new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
+            });
+
+            return Ok(profiles);
+        }
+
     }
 }
