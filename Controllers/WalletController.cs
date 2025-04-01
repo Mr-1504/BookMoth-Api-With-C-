@@ -4,12 +4,11 @@ using BookMoth_Api_With_C_.Services;
 using BookMoth_Api_With_C_.ZaloPay;
 using BookMoth_Api_With_C_.ZaloPay.Crypto;
 using BookMoth_Api_With_C_.ZaloPay.Models;
-using Microsoft.AspNetCore.Http.HttpResults;
+using FirebaseAdmin.Messaging;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
-using System;
 using static BookMoth_Api_With_C_.Models.Enums;
 using PaymentMethod = BookMoth_Api_With_C_.Models.Enums.PaymentMethod;
 
@@ -95,7 +94,10 @@ namespace BookMoth_Api_With_C_.Controllers
                 return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
             }
 
-            var wallet = await _context.Wallets.FirstOrDefaultAsync(wallet => wallet.AccountId == accountId);
+            var wallet = await _context.Wallets
+                                .Include(t => t.Account)
+                                .ThenInclude(a => a.Profiles)
+                                .FirstOrDefaultAsync(wallet => wallet.AccountId == accountId);
 
             if (wallet != null)
             {
@@ -125,27 +127,15 @@ namespace BookMoth_Api_With_C_.Controllers
                                         .Where(t => t.AccountId == accountId)
                                         .Select(t => t.Token)
                                         .ToListAsync();
+                    await _emailService.SendEmailAsync(
+                        wallet.Account.Email, wallet.Account.Profiles.ToList().FirstOrDefault().FirstName, "", 3);
 
                     if (deviceTokens.Any())
                     {
-                        var notificationTasks = deviceTokens.Select(async token =>
-                        {
-                            try
-                            {
-                                await _fcmService.SendNotificationAsync(
-                                    token,
-                                    "Mở ví thanh toán thành công",
-                                    $"Bạn vừa thực hiện mở ví thanh toán BookMoth\n" +
-                                    $"Thời gian: {DateTime.UtcNow.AddHours(7):yyyy-MM-dd HH:mm:ss}\n"
-                                );
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError($"Lỗi gửi thông báo đến {token}: {ex.Message}");
-                            }
-                        }).ToList();
-
-                        await Task.WhenAll(notificationTasks);
+                        string title = "Mở ví thanh toán thành công";
+                        string body = $"Bạn vừa thực hiện mở ví thanh toán BookMoth\n" +
+                        $"Thời gian: {DateTime.UtcNow.AddHours(7):yyyy-MM-dd HH:mm:ss}\n";
+                        await _fcmService.sendNotificationAsync(deviceTokens, title, body);
                     }
 
                     return Ok();
@@ -593,9 +583,10 @@ namespace BookMoth_Api_With_C_.Controllers
             }
 
             var transaction = await _context.Transactions.FirstOrDefaultAsync
-                (t =>
-                    t.TransactionId == request.TransactionId &&
-                    t.SenderWalletId == myWallet.WalletId
+                (t =>   
+                    t.TransactionId == request.TransactionId && 
+                    ((t.SenderWalletId == myWallet.WalletId && t.TransactionType != TransactionType.Deposit) ||
+                    (t.ReceiverWalletId == myWallet.WalletId && t.TransactionType == TransactionType.Deposit))
                 );
 
             if (transaction == null)
@@ -651,6 +642,7 @@ namespace BookMoth_Api_With_C_.Controllers
                 {
                     var myWallet = await _context.Wallets
                     .FromSqlRaw("SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE Account_Id = {0}", accountId)
+                    .AsTracking()
                     .FirstOrDefaultAsync();
 
                     if (myWallet == null)
@@ -681,6 +673,7 @@ namespace BookMoth_Api_With_C_.Controllers
 
                     var receiverWallet = await _context.Wallets
                         .FromSqlRaw("SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE Wallet_id = {0}", transaction.ReceiverWalletId)
+                        .AsTracking()
                         .FirstOrDefaultAsync();
 
                     if (receiverWallet == null)
@@ -742,6 +735,60 @@ namespace BookMoth_Api_With_C_.Controllers
                     await _context.SaveChangesAsync();
 
                     await trans.CommitAsync();
+
+                    var receiverDeviceToken = _context.FcmTokens
+                        .Where(t => t.AccountId == receiverWallet.AccountId)
+                        .Select(t => t.Token)
+                        .ToList();
+
+                    if (receiverDeviceToken.Any())
+                    {
+                        string message = $"Bạn vừa nhận được một giao dịch\n" +
+                                            $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
+                                            $"Giao dịch: +{transaction.Amount:N0} VND\n" +
+                                            $"Số dư hiện tại: {receiverWallet.Balance:N0} VND\n" +
+                                            $"Nội dung: {transaction.Description}";
+                        string title = "Biến động số dư";
+                        await _fcmService.sendNotificationAsync(receiverDeviceToken, title, message);
+                    }
+                    var receiver = await _context.Profiles
+                        .Include(p => p.Account)
+                        .Where(p => p.AccountId == receiverWallet.AccountId)
+                        .FirstOrDefaultAsync();
+
+                    if (receiver != null)
+                    {
+                        await _emailService.SendEmailAsync(
+                            receiver.Account.Email, receiver.FirstName, "", 5);
+                    }
+
+                    var senderDeviceToken = _context.FcmTokens
+                        .Where(t => t.AccountId == accountId)
+                        .Select(t => t.Token)
+                        .ToList();
+
+                    if (senderDeviceToken.Any())
+                    {
+                        string message = $"Bạn vừa thực hiện một giao dịch\n" +
+                                            $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
+                                            $"Giao dịch: -{transaction.Amount:N0} VND\n" +
+                                            $"Số dư hiện tại: {myWallet.Balance:N0} VND\n" +
+                                            $"Nội dung: {transaction.Description}";
+                        string title = "Biến động số dư";
+                        await _fcmService.sendNotificationAsync(senderDeviceToken, title, message);
+                    }
+
+                    var sender = await _context.Profiles
+                        .Include(p => p.Account)
+                        .Where(p => p.AccountId == accountId)
+                        .FirstOrDefaultAsync();
+
+                    if (sender != null)
+                    {
+                        await _emailService.SendEmailAsync(
+                            sender.Account.Email, sender.FirstName, "", 4);
+                    }
+
                     return Ok(new { success = true, message = "Payment successful" });
                 }
                 catch (Exception ex)
