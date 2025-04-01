@@ -18,19 +18,18 @@ public partial class Profile
     public string? Avatar { get; set; }
 
     public string? Coverphoto { get; set; }
+
+    public bool? Identifier { get; set; }
+
     public int? Gender { get; set; }
 
     public DateTime? Birth { get; set; }
 
-    public bool? Identifier { get; set; }
-
     public virtual Account Account { get; set; } = null!;
+
+    public virtual ICollection<Follow> Follows { get; set; } = new List<Follow>();
 
     public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
 
     public virtual ICollection<Work> Works { get; set; } = new List<Work>();
-
-    public virtual ICollection<Profile> Followers { get; set; } = new List<Profile>();
-
-    public virtual ICollection<Profile> Followings { get; set; } = new List<Profile>();
 }

@@ -33,8 +33,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton<JwtService>();
 
+var connectionString = builder.Configuration.GetConnectionString("BookMothContext");
 builder.Services.AddDbContext<BookMothContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("BookMothContext")));
+    options.UseSqlServer(connectionString));
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

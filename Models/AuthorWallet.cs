@@ -12,6 +12,4 @@ public partial class AuthorWallet
     public decimal? AccumulatedBalance { get; set; }
 
     public string? PaymentInfo { get; set; }
-
-    public virtual ICollection<PaymentInvoice> PaymentInvoices { get; set; } = new List<PaymentInvoice>();
 }

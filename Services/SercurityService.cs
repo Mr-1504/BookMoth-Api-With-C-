@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using BookMoth_Api_With_C_.ZaloPay.Crypto;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace BookMoth_Api_With_C_.Services
@@ -34,6 +35,17 @@ namespace BookMoth_Api_With_C_.Services
                 }
                 return sb.ToString();
             }
+        }
+
+        public static string ComputeHashMac(string key = "", string message = "")
+        {
+            byte[] keyByte = Encoding.UTF8.GetBytes(key);
+            byte[] messageBytes = Encoding.UTF8.GetBytes(message);
+            byte[] hashMessage = null;
+
+            hashMessage = new HMACSHA256(keyByte).ComputeHash(messageBytes);
+
+            return BitConverter.ToString(hashMessage).Replace("-", "").ToLower();
         }
     }
 }

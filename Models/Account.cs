@@ -1,4 +1,6 @@
-﻿
+﻿using System;
+using System.Collections.Generic;
+
 namespace BookMoth_Api_With_C_.Models;
 
 public partial class Account
@@ -12,6 +14,8 @@ public partial class Account
     public string Salt { get; set; } = null!;
 
     public int? AccountType { get; set; }
+
+    public virtual ICollection<FcmToken> FcmTokens { get; set; } = new List<FcmToken>();
 
     public virtual ICollection<Profile> Profiles { get; set; } = new List<Profile>();
 

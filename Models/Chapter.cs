@@ -7,9 +7,13 @@ public partial class Chapter
 {
     public int ChapterId { get; set; }
 
-    public DateTime? PostDate { get; set; }
+    public int WorkId { get; set; }
 
-    public string? FileUrl { get; set; }
+    public string? Title { get; set; }
 
-    public virtual ICollection<Work> Works { get; set; } = new List<Work>();
+    public DateTime PostDate { get; set; }
+
+    public string ContentUrl { get; set; } = null!;
+
+    public virtual Work Work { get; set; } = null!;
 }
