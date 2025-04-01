@@ -19,7 +19,7 @@ namespace BookMoth_Api_With_C_.Services
             "   <p>Trân trọng,<br>Đội ngũ hỗ trợ</p>" +
             "</div>" +
             "<div class='footer'>" +
-            "   <p>&copy; {DateTime.Now.Year} BeA Fashion. Bảo mật thông tin của bạn là ưu tiên hàng đầu của chúng tôi.</p>" +
+            "   <p>&copy; {DateTime.Now.Year} BookMoth. Bảo mật thông tin của bạn là ưu tiên hàng đầu của chúng tôi.</p>" +
             "</div>";
 
         private readonly string _forgotPasswordContent =
@@ -37,19 +37,19 @@ namespace BookMoth_Api_With_C_.Services
             "<div class='footer'>" +
             "   <p>&copy; {DateTime.Now.Year} BeA Fashion. Bảo mật thông tin của bạn là ưu tiên hàng đầu của chúng tôi.</p>" +
             "</div>";
-        private readonly string _discountEmailContent =
+        private readonly string _OpenWalletEmailContent =
             "<div class='header'>" +
-            "   <h1>Thông báo mã giảm giá</h1>" +
+            "   <h1>Thông báo mở ví thanh toán</h1>" +
             "</div>" +
             "<div class='content'>" +
             "   <h2>Chào {name},</h2>" +
-            "   <p>Chúng tôi rất vui mừng thông báo rằng bạn đã nhận được mã giảm giá mới!</p>" +
-            "   {code}" +
+            "   <p>Chúng tôi rất vui mừng thông báo rằng bạn mở thành công ví thanh toán BookMoth!</p>" +
+            "  {code} " +
             "   <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.</p>" +
             "   <p>Trân trọng,<br>Đội ngũ hỗ trợ</p>" +
             "</div>" +
             "<div class='footer'>" +
-            "   <p>&copy; {DateTime.Now.Year} BeA Fashion. Bảo mật thông tin của bạn là ưu tiên hàng đầu của chúng tôi.</p>" +
+            "   <p>&copy; {DateTime.Now.Year} BookMoth. Bảo mật thông tin của bạn là ưu tiên hàng đầu của chúng tôi.</p>" +
             "</div>";
         private readonly string _paymentSuccessContent =
             "<div class='header'>" +
@@ -57,29 +57,32 @@ namespace BookMoth_Api_With_C_.Services
             "</div>" +
             "<div class='content'>" +
             "   <h2>Chào {name},</h2>" +
-            "   <p>Cảm ơn bạn đã mua hàng tại BeA Fashion!</p>" +
-            "   <p>Đơn hàng của bạn đã được thanh toán thành công. Chúng tôi sẽ sớm chuẩn bị và gửi đến bạn.</p>" +
+            "   <p>Cảm ơn bạn đã mua hàng tại BookMoth!</p>" +
+            "   <p>Đơn hàng của bạn đã được thanh toán thành công.</p>" +
             "   {code}" +
             "   <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.</p>" +
             "   <p>Trân trọng,<br>Đội ngũ hỗ trợ</p>" +
             "</div>" +
             "<div class='footer'>" +
-            "   <p>&copy; {DateTime.Now.Year} BeA Fashion. Cảm ơn bạn đã tin tưởng chúng tôi.</p>" +
+            "   <p>&copy; {DateTime.Now.Year} BookMoth. Cảm ơn bạn đã tin tưởng chúng tôi.</p>" +
             "</div>";
-        private readonly string _newReplyContent =
-            "<div class='header'>" +
-            "   <h1>Phản hồi mới</h1>" +
-            "</div>" +
-            "<div class='content'>" +
-            "   <h2>Xin chào {name},</h2>" +
-            "   <p>Đánh giá của bạn vừa được phản hồi, hãy kiểm tra!<p/>" +
-            "   <div style='padding: 10px; border-left: solid 5px #7971ea'>" +
-            "   {code}" +
-            "   </div>" +
-            "   <p>Trân trọng,<br>Đội ngũ hỗ trợ</p>" +
-            "</div>" +
-            "<div class='footer'>" +
-            "   <p>&copy; {DateTime.Now.Year} BeA Fashion. Cảm ơn bạn đã tin tưởng chúng tôi.</p>" +
+        private readonly string _newPurchaseContent =
+            "<div style='font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 10px;'>" +
+            "<div style='background-color: #4CAF50; padding: 15px; text-align: center; color: white; border-radius: 10px 10px 0 0;'>" +
+            "<h1>Thanh toán thành công!</h1>" +
+            "</div>"+
+            "<div style='padding: 20px;'>"+
+            "<h2>Chào {name},</h2>" +
+            "<p>Cảm ơn bạn đã mua hàng tại <strong>BookMoth</strong>!</p>" +
+            "<p>Đơn hàng của bạn đã được thanh toán thành công.</p>"+
+            "<p>Bạn có thể kiểm tra chi tiết đơn hàng trong tài khoản của mình.</p>"+
+            "<p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.</p>"+
+            "<p>Trân trọng,<br><strong>Đội ngũ hỗ trợ BookMoth</strong></p>"+
+            "{code}"+
+            "</div>"+
+            "<div style='background-color: #f8f8f8; padding: 10px; text-align: center; font-size: 12px; color: #777; border-radius: 0 0 10px 10px;'>"+
+            "<p>&copy; {DateTime.Now.Year} BookMoth. Cảm ơn bạn đã tin tưởng chúng tôi.</p>"+
+            "</div>"+
             "</div>";
 
         private readonly string fromMail;
@@ -132,9 +135,9 @@ namespace BookMoth_Api_With_C_.Services
             {
                 1 => "Xác thực tài khoản",
                 2 => "Đặt lại mật khẩu",
-                3 => "Thông báo mã giảm giá",
+                3 => "Thông báo mở ví thanh toán BookMoth",
                 4 => "Xác nhận thanh toán thành công",
-                5 => "Phản hồi mới từ đánh giá của bạn",
+                5 => "Thông báo đơn hàng",
                 _ => "Thông báo từ BeA Fashion"
             };
         }
@@ -197,7 +200,7 @@ namespace BookMoth_Api_With_C_.Services
             string content;
             if (status == 3)
             {
-                content = _discountEmailContent;
+                content = _OpenWalletEmailContent;
             }
             else if (status == 4)
             {
@@ -205,13 +208,13 @@ namespace BookMoth_Api_With_C_.Services
             }
             else if (status == 5)
             {
-                content = _newReplyContent;
+                content = _newPurchaseContent;
             }
             else
             {
                 content = status == 1 ? _confirmEmailContent : _forgotPasswordContent;
             }
-            body = _confirmEmailContent;
+            body = content;
             body = body.Replace("{name}", name)
                        .Replace("{code}", code)
                        .Replace("{DateTime.Now.Year}", DateTime.Now.Year.ToString());
