@@ -71,6 +71,7 @@ namespace BookMoth_Api_With_C_.Services
                                     {
                                         var receiverWallet = await context.Wallets
                                             .FromSqlRaw("SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE wallet_id = {0}", transaction.ReceiverWalletId)
+                                            .AsTracking()
                                             .FirstOrDefaultAsync();
 
                                         if (receiverWallet == null)
@@ -134,6 +135,7 @@ namespace BookMoth_Api_With_C_.Services
                                         transaction.Status = TransactionStatus.Success;
                                         var wallet = context.Wallets
                                             .FromSqlRaw("SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE wallet_id = {0}", transaction.ReceiverWalletId)
+                                            .AsTracking()
                                             .FirstOrDefault();
                                         if (wallet != null)
                                         {
