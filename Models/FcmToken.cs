@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace BookMoth_Api_With_C_.Models;
+﻿namespace BookMoth_Api_With_C_.Models;
 
 public partial class FcmToken
 {

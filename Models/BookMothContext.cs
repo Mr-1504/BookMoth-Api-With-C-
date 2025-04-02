@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using BookMoth_Api_With_C_.ResponseModels;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookMoth_Api_With_C_.Models;
@@ -315,6 +317,7 @@ public partial class BookMothContext : DbContext
                 .HasForeignKey(d => d.PaymentMethodId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__Transacti__payme__74AE54BC");
+            entity.Property(e => e.Description).HasColumnName("description");
         });
 
         modelBuilder.Entity<Wallet>(entity =>
@@ -389,6 +392,16 @@ public partial class BookMothContext : DbContext
 
         OnModelCreatingPartial(modelBuilder);
     }
+
+    public async Task<List<ProfileDTO>> SearchUsersByFollowAsync(int profileId, string searchString)
+    {
+        return await this.Database
+            .SqlQueryRaw<ProfileDTO>("EXEC SearchUsersByFollow @profileId, @SearchString",
+                new SqlParameter("@profileId", profileId),
+                new SqlParameter("@SearchString", searchString ?? ""))  // Đảm bảo SearchString không null
+            .ToListAsync();
+    }
+
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 }

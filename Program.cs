@@ -9,12 +9,21 @@ using Microsoft.Extensions.FileProviders;
 using BookMoth_Api_With_C_.ZaloPay;
 using Serilog;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Caching.Distributed;  
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = "localhost:6379";  
+    options.InstanceName = "BookMothCacheRedis";
+});
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect("localhost:6379"));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -33,9 +42,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton<JwtService>();
 
-var connectionString = builder.Configuration.GetConnectionString("BookMothContext");
 builder.Services.AddDbContext<BookMothContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("BookMothContext")));
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -52,6 +60,7 @@ builder.Services.AddHttpClient(); // Đăng ký IHttpClientFactory
 builder.Services.AddSingleton<ZaloPayService>();
 builder.Services.AddHostedService<TransactionBackgroundService>();
 builder.Services.AddSingleton<FcmService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
 
 builder.Services.Configure<FormOptions>(options =>
 {

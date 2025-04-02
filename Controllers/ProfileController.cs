@@ -1,8 +1,12 @@
 ﻿using BookMoth_Api_With_C_.Models;
 using BookMoth_Api_With_C_.RequestModels;
 using BookMoth_Api_With_C_.ResponseModels;
+using BookMoth_Api_With_C_.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
+using Newtonsoft.Json;
+using StackExchange.Redis;
 using System.Globalization;
 
 namespace BookMoth_Api_With_C_.Controllers
@@ -13,10 +17,19 @@ namespace BookMoth_Api_With_C_.Controllers
     {
         private BookMothContext _context;
         private string url = "http://127.0.0.1:7100/images/";
+        private IProfileService _profileService;
+        private IDistributedCache _cache;
+        private IConnectionMultiplexer _redis;
 
         public ProfileController(
+            IConnectionMultiplexer redis,
+            IDistributedCache cache,
+            IProfileService profileService,
             BookMothContext context)
         {
+            _redis = redis;
+            _cache = cache;
+            _profileService = profileService;
             _context = context;
         }
 
@@ -157,6 +170,33 @@ namespace BookMoth_Api_With_C_.Controllers
 
                 await _context.Follows.AddAsync(follow);
                 await _context.SaveChangesAsync();
+
+                var server = _redis.GetServer(_redis.GetEndPoints().First());
+                var db = _redis.GetDatabase();
+                string pattern = $"search:*profileid:{myProfile.ProfileId}*";
+                var keys = server.Keys(pattern: pattern).ToList();
+                Console.WriteLine($"Keys found: {string.Join(", ", keys)}"); // Log để kiểm tra
+                foreach (var key in keys)
+                {
+                    await db.KeyDeleteAsync(key);
+                    Console.WriteLine($"Deleted key: {key}");
+                }
+
+                string cacheKey = $"follow:{myProfile.ProfileId}";
+                string jsonData = await _cache.GetStringAsync(cacheKey);
+
+                if (!string.IsNullOrEmpty(jsonData))
+                {
+                    var follows = JsonConvert.DeserializeObject<List<int>>(jsonData);
+
+                    follows.Add(profile.ProfileId);
+                    string updatedData = JsonConvert.SerializeObject(follows);
+                    await _cache.SetStringAsync(cacheKey, updatedData, new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6)
+                    });
+                }
+
                 await transaction.CommitAsync();
 
                 return Ok(new { message = "Followed successfully" });
@@ -167,6 +207,165 @@ namespace BookMoth_Api_With_C_.Controllers
                 return StatusCode(500, new { message = "An error occurred", error = ex.Message });
             }
         }
+
+
+        [HttpDelete("follow/{followingId}")]
+        public async Task<IActionResult> UnFollow(string followingId)
+        {
+            if (followingId == null)
+            {
+                return BadRequest(new { message = "Invalid request" });
+            }
+
+            if (!int.TryParse(followingId, out int id))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
+
+            var accountIdClaim = User.FindFirst("accountId")?.Value;
+            if (accountIdClaim == null)
+            {
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
+            }
+
+            if (!int.TryParse(accountIdClaim, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
+
+            var profile = await _context.Profiles
+                .Include(p => p.Follows)
+                .FirstOrDefaultAsync(p => p.ProfileId == id);
+
+            if (profile == null)
+            {
+                return NotFound(new { message = "Profile not found" });
+            }
+
+            var myProfile = await _context.Profiles
+                .Include(m => m.Follows)
+                .FirstOrDefaultAsync(m => m.AccountId == accountId);
+
+            if (myProfile == null)
+            {
+                return NotFound(new { message = "Your profile not found" });
+            }
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var follow = await _context.Follows.FirstOrDefaultAsync(
+                    f => f.FollowerId == myProfile.ProfileId && f.FollowingId == profile.ProfileId);
+
+                if (follow != null)
+                {
+                    _context.Follows.Remove(follow);
+                    await _context.SaveChangesAsync();
+
+                    var server = _redis.GetServer(_redis.GetEndPoints().First());
+                    var db = _redis.GetDatabase();
+                    string pattern = $"search:*profileid:{myProfile.ProfileId}*";
+                    var keys = server.Keys(pattern: pattern).ToList();
+                    Console.WriteLine($"Keys found: {string.Join(", ", keys)}"); // Log để kiểm tra
+                    foreach (var key in keys)
+                    {
+                        await db.KeyDeleteAsync(key);
+                        Console.WriteLine($"Deleted key: {key}");
+                    }
+
+                    string cacheKey = $"follow:{myProfile.ProfileId}";
+                    string jsonData = await _cache.GetStringAsync(cacheKey);
+
+                    if (!string.IsNullOrEmpty(jsonData))
+                    {
+                        var follows = JsonConvert.DeserializeObject<List<int>>(jsonData);
+
+                        if (follows.Remove(id))
+                        {
+                            string updatedData = JsonConvert.SerializeObject(follows);
+                            await _cache.SetStringAsync(cacheKey, updatedData, new DistributedCacheEntryOptions
+                            {
+                                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6) // Giữ nguyên thời gian hết hạn
+                            });
+                        }
+                    }
+
+                    await transaction.CommitAsync();
+                    return Ok(new { message = "Followed successfully" });
+                }
+                else
+                {
+                    return NotFound(new { message = "not following this profile" });
+                }
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { message = "An error occurred", error = ex.Message });
+            }
+        }
+
+
+        [HttpGet("is-following/{followingId}")]
+        public async Task<IActionResult> IsFollowing(int followingId)
+        {
+            if (followingId == null)
+            {
+                return BadRequest(new { message = "Invalid request" });
+            }
+
+            var accountIdClaim = User.FindFirst("accountId")?.Value;
+
+            if (accountIdClaim == null)
+            {
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
+            }
+
+            if (!int.TryParse(accountIdClaim, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
+
+            var myProfile = await _context.Profiles
+                .Include(m => m.Follows)
+                .FirstOrDefaultAsync(m => m.AccountId == accountId);
+
+            if (myProfile == null)
+            {
+                return NotFound(new { message = "Your profile not found" });
+            }
+
+            string cacheKey = $"follow:{myProfile.ProfileId}";
+
+            // Lấy dữ liệu từ Redis
+            var jsonData = await _cache.GetStringAsync(cacheKey);
+
+            if (string.IsNullOrEmpty(jsonData))
+            {
+                // Nếu không có cache, lấy từ database
+                var follows = await _context.Follows
+                    .Where(f => f.FollowerId == myProfile.ProfileId)
+                    .Select(f => f.FollowingId)
+                    .ToListAsync();
+
+                // Cập nhật cache
+                jsonData = JsonConvert.SerializeObject(follows);
+                await _cache.SetStringAsync(cacheKey, jsonData, new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6)
+                });
+            }
+
+            // Chuyển JSON thành danh sách
+            var followList = JsonConvert.DeserializeObject<List<int>>(jsonData);
+
+            // Kiểm tra xem followingId có trong danh sách không
+            bool isFollowing = followList.Contains(followingId);
+
+            return Ok(new { isFollowing });
+        }
+
+
 
         /// <summary>
         /// Kiểm tra username có tồn tại không
@@ -296,5 +495,60 @@ namespace BookMoth_Api_With_C_.Controllers
                 }
             }
         }
+
+        /// <summary>
+        /// Tìm kiếm người dùng theo mutual follow
+        /// </summary>
+        [HttpGet("search")]
+        public async Task<IActionResult> SearchUsers([FromQuery] string search)
+        {
+            if (string.IsNullOrWhiteSpace(search))
+            {
+                return BadRequest(new { message = "Invalid search string" });
+            }
+
+            var accountIdClaim = User.FindFirst("accountId")?.Value;
+            if (accountIdClaim == null)
+            {
+                return Unauthorized(new { message = "User not authenticated", error_code = "INVALID_TOKEN" });
+            }
+
+            if (!int.TryParse(accountIdClaim, out int accountId))
+            {
+                return Unauthorized(new { message = "Invalid account ID", error_code = "INVALID_TOKEN" });
+            }
+
+            var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.AccountId == accountId);
+            if (profile == null)
+            {
+                return NotFound(new { message = "Profile not found", error_code = "INVALID_PROFILE" });
+            }
+
+            string cacheKey = $"search:{search}profileid:{profile.ProfileId}";
+            string cachedResult = null;
+                //await _cache.GetStringAsync(cacheKey);
+
+            if (!string.IsNullOrEmpty(cachedResult))
+            {
+                var _profiles = JsonConvert.DeserializeObject<List<ProfileDTO>>(cachedResult);
+                Console.WriteLine("Get from cache");
+                return Ok(_profiles);
+            }
+
+            var profiles = await _profileService.SearchUsersByFollowAsync(profile.ProfileId, search);
+
+            if (profiles == null || profiles.Count == 0)
+            {
+                return NotFound(new { message = "Không tìm thấy người dùng nào." });
+            }
+
+            await _cache.SetStringAsync(cacheKey, JsonConvert.SerializeObject(profiles), new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
+            });
+
+            return Ok(profiles);
+        }
+
     }
 }
