@@ -22,6 +22,9 @@ builder.Services.AddStackExchangeRedisCache(options =>
     options.Configuration = "localhost:6379";  
     options.InstanceName = "BookMothCacheRedis";
 });
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect("localhost:6379"));
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
