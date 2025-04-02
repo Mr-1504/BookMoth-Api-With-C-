@@ -8,5 +8,8 @@
         public string? Last_Name { get; set; }
         public string? Avatar { get; set; }
         public int MutualCount { get; set; }
+        public int Followers { get; set; }
+        public int Following { get; set; }
+        public int Followed { get; set; }
     }
 }
