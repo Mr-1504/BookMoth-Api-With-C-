@@ -127,6 +127,7 @@ namespace BookMoth_Api_With_C_.Controllers
                                         .Where(t => t.AccountId == accountId)
                                         .Select(t => t.Token)
                                         .ToListAsync();
+
                     await _emailService.SendEmailAsync(
                         wallet.Account.Email, wallet.Account.Profiles.ToList().FirstOrDefault().FirstName, "", 3);
 
