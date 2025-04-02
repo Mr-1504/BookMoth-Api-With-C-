@@ -343,7 +343,7 @@ namespace BookMoth_Api_With_C_.Controllers
                 Console.WriteLine("Get from cache");
                 return Ok(_profiles);
             }
-            Console.WriteLine("Getaaaaaaaaaaaaaaaaaaaaaaaa");
+
             var profiles = await _profileService.SearchUsersByFollowAsync(profile.ProfileId, search);
 
             if (profiles == null || profiles.Count == 0)
