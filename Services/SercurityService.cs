@@ -1,5 +1,4 @@
-﻿using BookMoth_Api_With_C_.ZaloPay.Crypto;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 
 namespace BookMoth_Api_With_C_.Services
@@ -13,7 +12,7 @@ namespace BookMoth_Api_With_C_.Services
             rng.GetBytes(saltBytes);
             return Convert.ToBase64String(saltBytes);
         }
-
+        
         public static string GenerateRandomCode(int length = 6)
         {
             Random random = new Random();
