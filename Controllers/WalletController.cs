@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 using static BookMoth_Api_With_C_.Models.Enums;
+using static System.Net.WebRequestMethods;
 using PaymentMethod = BookMoth_Api_With_C_.Models.Enums.PaymentMethod;
 
 namespace BookMoth_Api_With_C_.Controllers
@@ -131,17 +132,26 @@ namespace BookMoth_Api_With_C_.Controllers
                                 .Include(t => t.Account)
                                 .ThenInclude(a => a.Profiles)
                                 .FirstOrDefaultAsync(wallet => wallet.AccountId == accountId);
-
-                    await _emailService.SendEmailAsync(
-                        wallet.Account.Email, wallet.Account.Profiles.ToList().FirstOrDefault().FirstName, "", 3);
-
-                    if (deviceTokens.Any())
+                    _ = Task.Run(async () =>
                     {
-                        string title = "Mở ví thanh toán thành công";
-                        string body = $"Bạn vừa thực hiện mở ví thanh toán BookMoth\n" +
-                        $"Thời gian: {DateTime.UtcNow.AddHours(7):yyyy-MM-dd HH:mm:ss}\n";
-                        await _fcmService.sendNotificationAsync(deviceTokens, title, body);
-                    }
+                        try
+                        {
+                            if (deviceTokens.Any())
+                            {
+                                string title = "Mở ví thanh toán thành công";
+                                string body = $"Bạn vừa thực hiện mở ví thanh toán BookMoth\n" +
+                                $"Thời gian: {DateTime.UtcNow.AddHours(7):yyyy-MM-dd HH:mm:ss}\n";
+                                await _fcmService.sendNotificationAsync(deviceTokens, title, body);
+                            }
+
+                            await _emailService.SendEmailAsync(
+                                wallet.Account.Email, wallet.Account.Profiles.ToList().FirstOrDefault().FirstName, "", 3);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, $"Failed to send OTP to {wallet.Account.Email}");
+                        }
+                    });
 
                     return Ok();
                 }
@@ -419,47 +429,86 @@ namespace BookMoth_Api_With_C_.Controllers
                     var data = JsonConvert.DeserializeObject<Dictionary<string, object>>(dataStr);
                     var apptransid = data["apptransid"].ToString();
 
-                    var transId = int.Parse(apptransid.Split("_")[2]);
+                    var transaction = await _context.Transactions
+                        .FirstOrDefaultAsync(t => t.TransactionId == apptransid);
 
-                    using (var trans = _context.Database.BeginTransaction())
+                    transaction.Status = TransactionStatus.Success;
+                    var wallet = _context.Wallets
+                        .FromSqlRaw("SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE wallet_id = {0}", transaction.ReceiverWalletId)
+                        .AsTracking()
+                        .FirstOrDefault();
+                    DateTime vietnamTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
+
+                    if (wallet != null)
                     {
-                        try
+
+                        decimal oldBalance = wallet.Balance;
+                        wallet.Balance += transaction.Amount;
+                        await _context.SaveChangesAsync();
+                        var history = new Iachistory
                         {
-                            var transaction = _context.Transactions.SingleOrDefault(o => o.TransactionId.Equals(transId));
-                            if (transaction != null)
-                            {
-                                transaction.Status = TransactionStatus.Success;
-                                _context.SaveChanges();
+                            IachDate = vietnamTime,
+                            ReceiverWalletId = transaction.ReceiverWalletId,
+                            TransactionType = TransactionType.Deposit,
+                            InvoiceValue = transaction.Amount,
+                            BeginBalance = oldBalance,
+                            EndBalance = wallet.Balance,
+                            Description = transaction.Description,
+                            PaymentMethodId = transaction.PaymentMethodId,
+                            WorkId = transaction.WorkId,
+                            TransactionId = transaction.TransactionId
+                        };
 
-                                var wallet = _context.Wallets.SingleOrDefault(w => w.WalletId.Equals(transaction.ReceiverWalletId));
-                                if (wallet != null)
-                                {
-                                    wallet.Balance += transaction.Amount;
-                                    _context.SaveChanges();
-                                    trans.Commit();
+                        await _context.Iachistories.AddAsync(history);
+                        await _context.SaveChangesAsync();
+                        if (data["apptime"] != null && long.TryParse(data["apptime"].ToString(), out long timestamp))
+                        {
+                            DateTime time = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime.AddHours(7);
 
-                                    //await _notificationService.SendNotification("Nạp tiền thành công!");
-                                    return Ok("Success");
-                                }
-                                else
-                                {
-                                    trans.Rollback();
-                                    return UnprocessableEntity(new { success = false, message = "Wallet not found" });
-                                }
-                            }
-                            else
+                            string message = $"Bạn vừa thực hiện thành công một giao dịch\n" +
+                                $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
+                                $"Giao dịch: +{transaction.Amount:N0} VND\n" +
+                                $"Số dư hiện tại: {wallet.Balance:N0} VND\n" +
+                                $"Nội dung: Nạp tiền: {transaction.Description}";
+                            string title = "Nạp tiền thành công";
+
+                            _ = Task.Run(async () =>
                             {
-                                return UnprocessableEntity(new { success = false, message = "Transaction not found" });
-                            }
+                                try
+                                {
+                                    var deviceTokens = _context.FcmTokens
+                                        .Where(t => t.AccountId == wallet.AccountId)
+                                        .Select(t => t.Token)
+                                        .ToList();
+                                    if (deviceTokens.Any())
+                                    {
+                                        string title = "Mở ví thanh toán thành công";
+                                        string body = $"Bạn vừa thực hiện mở ví thanh toán BookMoth\n" +
+                                        $"Thời gian: {DateTime.UtcNow.AddHours(7):yyyy-MM-dd HH:mm:ss}\n";
+                                        await _fcmService.sendNotificationAsync(deviceTokens, title, body);
+                                    }
+
+                                    await _emailService.SendEmailAsync(
+                                        wallet.Account.Email, wallet.Account.Profiles.ToList().FirstOrDefault().FirstName, "", 3);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogError(ex, $"Failed to send OTP to {wallet.Account.Email}");
+                                }
+                            });
                         }
-
-                        catch (Exception ex)
+                        else
                         {
-                            trans.Rollback();
-                            return UnprocessableEntity(new { success = false, message = ex.Message });
+                            _logger.LogError($"Dữ liệu apptime không hợp lệ cho giao dịch {transaction.TransactionId}");
                         }
                     }
+                    else
+                    {
+                        _logger.LogError($"Không tìm thấy ví có ID {transaction.ReceiverWalletId} cho giao dịch {transaction.TransactionId}");
+                    }
                 }
+
+                return Ok(new { success = true, message = "success" });
             }
             catch (Exception ex)
             {
@@ -588,8 +637,8 @@ namespace BookMoth_Api_With_C_.Controllers
             }
 
             var transaction = await _context.Transactions.FirstOrDefaultAsync
-                (t =>   
-                    t.TransactionId == request.TransactionId && 
+                (t =>
+                    t.TransactionId == request.TransactionId &&
                     ((t.SenderWalletId == myWallet.WalletId && t.TransactionType != TransactionType.Deposit) ||
                     (t.ReceiverWalletId == myWallet.WalletId && t.TransactionType == TransactionType.Deposit))
                 );
@@ -741,58 +790,69 @@ namespace BookMoth_Api_With_C_.Controllers
 
                     await trans.CommitAsync();
 
-                    var receiverDeviceToken = _context.FcmTokens
-                        .Where(t => t.AccountId == receiverWallet.AccountId)
-                        .Select(t => t.Token)
-                        .ToList();
-
-                    if (receiverDeviceToken.Any())
+                    _ = Task.Run(async () =>
                     {
-                        string message = $"Bạn vừa nhận được một giao dịch\n" +
-                                            $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
-                                            $"Giao dịch: +{transaction.Amount:N0} VND\n" +
-                                            $"Số dư hiện tại: {receiverWallet.Balance:N0} VND\n" +
-                                            $"Nội dung: {transaction.Description}";
-                        string title = "Biến động số dư";
-                        await _fcmService.sendNotificationAsync(receiverDeviceToken, title, message);
-                    }
-                    var receiver = await _context.Profiles
-                        .Include(p => p.Account)
-                        .Where(p => p.AccountId == receiverWallet.AccountId)
-                        .FirstOrDefaultAsync();
+                        try
+                        {
+                            var receiverDeviceToken = _context.FcmTokens
+                                .Where(t => t.AccountId == receiverWallet.AccountId)
+                                .Select(t => t.Token)
+                                .ToList();
 
-                    if (receiver != null)
-                    {
-                        await _emailService.SendEmailAsync(
-                            receiver.Account.Email, receiver.FirstName, "", 5);
-                    }
+                            if (receiverDeviceToken.Any())
+                            {
+                                string message = $"Bạn vừa nhận được một giao dịch\n" +
+                                                    $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
+                                                    $"Giao dịch: +{transaction.Amount:N0} VND\n" +
+                                                    $"Số dư hiện tại: {receiverWallet.Balance:N0} VND\n" +
+                                                    $"Nội dung: {transaction.Description}";
+                                string title = "Biến động số dư";
+                                await _fcmService.sendNotificationAsync(receiverDeviceToken, title, message);
+                            }
+                            var receiver = await _context.Profiles
+                                .Include(p => p.Account)
+                                .Where(p => p.AccountId == receiverWallet.AccountId)
+                                .FirstOrDefaultAsync();
 
-                    var senderDeviceToken = _context.FcmTokens
-                        .Where(t => t.AccountId == accountId)
-                        .Select(t => t.Token)
-                        .ToList();
+                            if (receiver != null)
+                            {
+                                await _emailService.SendEmailAsync(
+                                    receiver.Account.Email, receiver.FirstName, "", 5);
+                            }
 
-                    if (senderDeviceToken.Any())
-                    {
-                        string message = $"Bạn vừa thực hiện một giao dịch\n" +
-                                            $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
-                                            $"Giao dịch: -{transaction.Amount:N0} VND\n" +
-                                            $"Số dư hiện tại: {myWallet.Balance:N0} VND\n" +
-                                            $"Nội dung: {transaction.Description}";
-                        string title = "Biến động số dư";
-                        await _fcmService.sendNotificationAsync(senderDeviceToken, title, message);
-                    }
+                            var senderDeviceToken = _context.FcmTokens
+                                .Where(t => t.AccountId == accountId)
+                                .Select(t => t.Token)
+                                .ToList();
 
-                    var sender = await _context.Profiles
-                        .Include(p => p.Account)
-                        .Where(p => p.AccountId == accountId)
-                        .FirstOrDefaultAsync();
+                            if (senderDeviceToken.Any())
+                            {
+                                string message = $"Bạn vừa thực hiện một giao dịch\n" +
+                                                    $"Thời gian: {time:yyyy-MM-dd HH:mm:ss}\n" +
+                                                    $"Giao dịch: -{transaction.Amount:N0} VND\n" +
+                                                    $"Số dư hiện tại: {myWallet.Balance:N0} VND\n" +
+                                                    $"Nội dung: {transaction.Description}";
+                                string title = "Biến động số dư";
+                                await _fcmService.sendNotificationAsync(senderDeviceToken, title, message);
+                            }
 
-                    if (sender != null)
-                    {
-                        await _emailService.SendEmailAsync(
-                            sender.Account.Email, sender.FirstName, "", 4);
-                    }
+                            var sender = await _context.Profiles
+                                .Include(p => p.Account)
+                                .Where(p => p.AccountId == accountId)
+                                .FirstOrDefaultAsync();
+
+                            if (sender != null)
+                            {
+                                await _emailService.SendEmailAsync(
+                                    sender.Account.Email, sender.FirstName, "", 4);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, $"Failed");
+                        }
+                    });
+                   
 
                     return Ok(new { success = true, message = "Payment successful" });
                 }
